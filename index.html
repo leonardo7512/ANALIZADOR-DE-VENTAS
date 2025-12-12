@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador Ventas v13</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .hidden-section { display: none !important; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 95%; max-width: 1000px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+        .modal-body { overflow-y: auto; flex: 1; }
+        @media print {
+            @page { size: letter; margin: 1.5cm; }
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+            #reportView:not(.hidden-section), #detailPrintView:not(.hidden-section), #glosasReportView:not(.hidden-section) { display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; }
+            #reportView.hidden-section, #detailPrintView.hidden-section, #glosasReportView.hidden-section { display: none !important; }
+            table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 20px; }
+            th { background-color: #eee !important; border-bottom: 1px solid #000; padding: 4px; text-align: left; }
+            td { border-bottom: 1px solid #ccc; padding: 4px; }
+            #chartsContainer { page-break-before: always; }
+            .charts-page { page-break-after: always; page-break-inside: avoid; height: 24cm; display: flex; flex-direction: column; justify-content: flex-start; gap: 1cm; }
+            .charts-page:last-child { page-break-after: auto; }
+            .chart-print-box { width: 100%; height: 11cm !important; min-height: 11cm !important; max-height: 11cm !important; page-break-inside: avoid; border: 1px solid #ddd; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; }
+            .chart-print-box h3 { flex-shrink: 0; margin-bottom: 5px; }
+            .chart-canvas-wrapper { flex: 1; position: relative; min-height: 0; }
+            .chart-canvas-wrapper canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas</h1>
+            <p class="text-xs text-gray-500">v13: Detector Glosas + Detalle Docs + Generador</p>
+        </div>
+        <div class="flex gap-3 items-end">
+            <div class="bg-white p-3 rounded shadow border">
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Generado por:</label>
+                <input type="text" id="reportAuthor" placeholder="Tu nombre..." class="border p-2 rounded w-48 text-sm outline-none bg-gray-50 focus:bg-white">
+            </div>
+            <div class="bg-white p-3 rounded shadow border">
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cargar CSV:</label>
+                <input type="file" id="uploadCsv" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="max-w-7xl mx-auto hidden-section no-print">
+        <div id="glosasAlert" class="hidden-section card border-l-4 border-orange-500 bg-orange-50 mb-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="font-bold text-orange-800"><i class="fas fa-exclamation-triangle"></i> Glosas Sospechosas: <span id="glosasCount" class="text-xl">0</span></h3>
+                    <p class="text-xs text-orange-700">Productos registrados como Glosa que no son envío/transporte.</p>
+                </div>
+                <button onclick="showGlosasReport()" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded text-sm"><i class="fas fa-eye"></i> Ver Reporte</button>
+            </div>
+        </div>
+
+        <div class="card border-l-4 border-blue-500 bg-blue-50 sticky top-0 z-20 shadow-md mb-4 p-4">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h3 class="font-bold text-blue-900"><i class="fas fa-check-double"></i> Selección: <span id="selectionCount" class="text-2xl font-black">0</span></h3>
+                    <p class="text-xs text-blue-700">Clic en producto = ver documentos</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearSelection()" class="bg-white border border-red-300 text-red-600 hover:bg-red-50 px-3 py-1 rounded text-xs font-bold"><i class="fas fa-trash"></i> Limpiar</button>
+                    <button onclick="generateReport()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow text-sm"><i class="fas fa-file-pdf"></i> Generar Informe</button>
+                </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-4 items-center border-t border-blue-200 pt-2">
+                <div class="flex items-center">
+                    <span class="text-xs font-bold text-gray-600 mr-2">Periodos:</span>
+                    <div id="monthCheckboxes" class="flex gap-2 flex-wrap bg-white p-1 rounded border max-h-16 overflow-y-auto text-xs"></div>
+                </div>
+                <div class="flex items-center bg-white px-2 py-1 rounded border shadow-sm">
+                    <input type="checkbox" id="includeCharts" class="w-4 h-4 cursor-pointer">
+                    <label for="includeCharts" class="ml-2 text-xs font-bold text-gray-700 cursor-pointer">Gráficos</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-4 gap-3">
+                <div class="w-full">
+                    <label class="font-bold text-gray-700 text-sm">Buscador:</label>
+                    <input type="text" id="searchInput" placeholder="Buscar producto..." class="border p-2 rounded w-full shadow-sm outline-none mt-1 bg-gray-50 focus:bg-white">
+                </div>
+                <div class="text-right text-xs text-gray-500 whitespace-nowrap"><span id="resultCount" class="font-bold text-blue-600">0</span> productos</div>
+            </div>
+            <div class="overflow-x-auto border rounded h-[500px] overflow-y-auto relative bg-white">
+                <table class="min-w-full table-auto text-sm w-full">
+                    <thead class="bg-gray-100 sticky top-0 z-10 shadow-sm text-gray-700">
+                        <tr>
+                            <th class="p-2 text-center w-10">#</th>
+                            <th class="p-2 text-left w-24">SKU</th>
+                            <th class="p-2 text-left">Producto</th>
+                            <th class="p-2 text-center w-16">Docs</th>
+                            <th class="p-2 text-center w-20">Unds</th>
+                            <th class="p-2 text-right w-28">Neto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTable" class="divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="detailModal" class="modal hidden-section">
+        <div class="modal-content">
+            <div class="flex justify-between items-start border-b pb-3 mb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-800" id="detailModalTitle">Producto</h2>
+                    <p class="text-xs text-gray-500" id="detailModalSku">SKU</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="printDetailModal()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"><i class="fas fa-print"></i> Imprimir</button>
+                    <button onclick="closeDetailModal()" class="bg-gray-300 px-3 py-1 rounded text-xs hover:bg-gray-400"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 flex gap-4 text-sm">
+                    <div class="bg-blue-50 px-3 py-2 rounded"><span class="text-gray-600">Docs:</span> <strong id="detailTotalDocs">0</strong></div>
+                    <div class="bg-green-50 px-3 py-2 rounded"><span class="text-gray-600">Unidades:</span> <strong id="detailTotalUnits">0</strong></div>
+                    <div class="bg-purple-50 px-3 py-2 rounded"><span class="text-gray-600">Neto:</span> <strong id="detailTotalNet">$0</strong></div>
+                </div>
+                <div class="overflow-x-auto border rounded max-h-[50vh] overflow-y-auto">
+                    <table class="min-w-full text-xs">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr>
+                        </thead>
+                        <tbody id="detailTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="glosasModal" class="modal hidden-section">
+        <div class="modal-content">
+            <div class="flex justify-between items-start border-b pb-3 mb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-orange-800"><i class="fas fa-exclamation-triangle"></i> Glosas Sospechosas</h2>
+                    <p class="text-xs text-gray-500">SKU tipo Glosa que NO son envío/transporte</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="printGlosasReport()" class="bg-orange-600 text-white px-3 py-1 rounded text-xs hover:bg-orange-700"><i class="fas fa-print"></i> Imprimir</button>
+                    <button onclick="closeGlosasModal()" class="bg-gray-300 px-3 py-1 rounded text-xs hover:bg-gray-400"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="overflow-x-auto border rounded max-h-[60vh] overflow-y-auto">
+                    <table class="min-w-full text-xs">
+                        <thead class="bg-orange-100 sticky top-0">
+                            <tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">SKU</th><th class="p-2 text-left">Producto</th><th class="p-2 text-left">Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr>
+                        </thead>
+                        <tbody id="glosasTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reportView" class="hidden-section bg-white max-w-[21cm] mx-auto mt-8 p-8 shadow-lg">
+        <div class="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
+            <div><h1 class="text-xl font-bold uppercase text-gray-900">Informe de Ventas</h1></div>
+            <div class="text-right">
+                <p class="text-xs text-gray-500">Emisión: <span id="reportDate">-</span></p>
+                <p class="text-xs text-gray-600">Por: <strong id="reportAuthorDisplay">-</strong></p>
+                <div class="mt-2 no-print flex gap-2 justify-end">
+                    <button onclick="closeReport()" class="bg-gray-200 px-3 py-1 rounded text-xs">Volver</button>
+                    <button onclick="window.print()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs">Imprimir</button>
+                </div>
+            </div>
+        </div>
+        <table class="w-full text-sm mb-6">
+            <thead><tr class="bg-gray-100 text-gray-700 text-xs uppercase"><th class="py-2 px-2 text-left w-2/5">Producto</th><th class="py-2 px-2 text-left w-2/5">Meses</th><th class="py-2 px-2 text-right w-1/5">Totales</th></tr></thead>
+            <tbody id="reportTableBody" class="divide-y divide-gray-200"></tbody>
+        </table>
+        <div id="chartsContainer"></div>
+    </div>
+
+    <div id="detailPrintView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
+        <div class="border-b-2 border-black pb-4 mb-4">
+            <h1 class="text-xl font-bold uppercase">Detalle de Ventas</h1>
+            <p class="text-sm" id="printDetailTitle">-</p>
+            <p class="text-xs text-gray-500" id="printDetailSku">-</p>
+            <p class="text-xs mt-2">Fecha: <span id="printDetailDate">-</span> | Por: <span id="printDetailAuthor">-</span></p>
+        </div>
+        <table class="w-full text-xs mb-4">
+            <thead class="bg-gray-100"><tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr></thead>
+            <tbody id="printDetailTableBody"></tbody>
+        </table>
+        <div class="border-t pt-2 text-right text-sm"><strong>Docs:</strong> <span id="printTotalDocs">0</span> | <strong>Unds:</strong> <span id="printTotalUnits">0</span> | <strong>Neto:</strong> <span id="printTotalNet">$0</span></div>
+    </div>
+
+    <div id="glosasReportView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
+        <div class="border-b-2 border-orange-500 pb-4 mb-4">
+            <h1 class="text-xl font-bold uppercase text-orange-800">⚠️ Glosas Sospechosas</h1>
+            <p class="text-xs mt-2">Fecha: <span id="printGlosasDate">-</span> | Por: <span id="printGlosasAuthor">-</span></p>
+        </div>
+        <table class="w-full text-xs">
+            <thead class="bg-orange-100"><tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">SKU</th><th class="p-2 text-left">Producto</th><th class="p-2 text-left">Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr></thead>
+            <tbody id="printGlosasTableBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let productsMap = {};
+        let productDocuments = {};
+        let suspiciousGlosas = [];
+        let availableMonths = [];
+        let searchTimeout = null;
+        let chartInstances = []; 
+        let selectedSKUs = new Set();
+        const moneyFormatter = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
+        const VALID_GLOSA_KEYWORDS = ['envio', 'envío', 'despacho', 'flete', 'transporte', 'shipping', 'costo de envio', 'dispatch', 'traslado', 'courier', 'starken', 'chilexpress', 'correos', 'bluexpress', 'turbus'];
+
+        document.getElementById('uploadCsv').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            Papa.parse(file, { header: true, skipEmptyLines: true, encoding: "UTF-8", complete: function(results) { processData(results.data); document.getElementById('dashboard').classList.remove('hidden-section'); }});
+        });
+
+        function cleanNumber(val) {
+            if (!val) return 0;
+            let str = String(val).trim().replace(/\./g, '').replace(',', '.');
+            const num = parseFloat(str);
+            return isNaN(num) ? 0 : num;
+        }
+
+        function isSuspiciousGlosa(sku, productName) {
+            const skuLower = (sku || '').toLowerCase();
+            const nameLower = (productName || '').toLowerCase();
+            const isGlosaSku = /^\d{10,}$/.test(sku) || skuLower.includes('glosa');
+            if (!isGlosaSku) return false;
+            return !VALID_GLOSA_KEYWORDS.some(kw => nameLower.includes(kw));
+        }
+
+        function processData(data) {
+            productsMap = {}; productDocuments = {}; suspiciousGlosas = []; selectedSKUs.clear(); updateSelectionCounter();
+            data.forEach(row => {
+                const dateStr = row['Fecha Venta'] || row['Fecha'];
+                if (!dateStr || dateStr.length < 8) return;
+                const dp = dateStr.split('/');
+                if (dp.length !== 3) return;
+                const day = parseInt(dp[0]), month = parseInt(dp[1]), year = parseInt(dp[2]);
+                if (isNaN(year) || year < 2000 || year > 2100 || isNaN(month) || month < 1 || month > 12 || isNaN(day) || day < 1 || day > 31) return;
+                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+                const qty = cleanNumber(row['Cantidad']);
+                let netTotal = cleanNumber(row['Venta Total Neta']);
+                if (netTotal === 0 && cleanNumber(row['Venta Total Bruta']) !== 0) netTotal = cleanNumber(row['Venta Total Bruta']) / 1.19;
+                const sku = row['SKU'] || 'SIN-SKU';
+                const name = row['Producto / Servicio + Variante'] || 'Desconocido';
+                const tipoDoc = row['Tipo de Documento'] || '';
+                const numDoc = row['Numero Documento'] || '';
+                const cliente = row['Nombre Cliente'] || '';
+                if (isSuspiciousGlosa(sku, name)) suspiciousGlosas.push({ fecha: dateStr, sku, producto: name, tipoDoc, numDoc, cliente, cantidad: qty, neto: netTotal });
+                if (qty !== 0 || netTotal !== 0) {
+                    if (!productsMap[sku]) { productsMap[sku] = { sku, name, totalQty: 0, totalNet: 0, monthlyNet: {}, monthlyQty: {}, docCount: 0 }; productDocuments[sku] = []; }
+                    productsMap[sku].totalQty += qty; productsMap[sku].totalNet += netTotal; productsMap[sku].docCount++;
+                    if (!productsMap[sku].monthlyNet[monthKey]) { productsMap[sku].monthlyNet[monthKey] = 0; productsMap[sku].monthlyQty[monthKey] = 0; }
+                    productsMap[sku].monthlyNet[monthKey] += netTotal; productsMap[sku].monthlyQty[monthKey] += qty;
+                    productDocuments[sku].push({ fecha: dateStr, tipoDoc, numDoc, cliente, cantidad: qty, neto: netTotal });
+                }
+            });
+            availableMonths = [...new Set(Object.values(productsMap).flatMap(p => Object.keys(p.monthlyNet)))].sort();
+            renderTable(''); renderMonthSelectors(); updateGlosasAlert();
+        }
+
+        function updateGlosasAlert() {
+            const a = document.getElementById('glosasAlert');
+            if (suspiciousGlosas.length > 0) { a.classList.remove('hidden-section'); document.getElementById('glosasCount').innerText = suspiciousGlosas.length; } 
+            else { a.classList.add('hidden-section'); }
+        }
+
+        function renderTable(filterText = '') {
+            const tbody = document.getElementById('productsTable'); tbody.innerHTML = '';
+            const term = filterText.toLowerCase();
+            let filtered = Object.values(productsMap).filter(p => !term || p.sku.toLowerCase().includes(term) || p.name.toLowerCase().includes(term));
+            filtered.sort((a, b) => b.totalNet - a.totalNet);
+            document.getElementById('resultCount').innerText = filtered.length;
+            filtered.slice(0, 100).forEach(p => {
+                const tr = document.createElement('tr');
+                const isChecked = selectedSKUs.has(p.sku);
+                tr.className = isChecked ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50";
+                tr.innerHTML = `<td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" onchange="toggleSelection('${p.sku}', this)" onclick="event.stopPropagation()" ${isChecked ? 'checked' : ''}></td>
+                    <td class="p-2 font-mono text-xs font-bold text-gray-600">${p.sku}</td>
+                    <td class="p-2 text-xs text-gray-800 cursor-pointer hover:text-blue-600" onclick="showProductDetail('${p.sku}')">${p.name}</td>
+                    <td class="p-2 text-center"><span class="bg-gray-200 px-2 py-1 rounded text-xs font-bold cursor-pointer hover:bg-blue-200" onclick="showProductDetail('${p.sku}')">${p.docCount}</span></td>
+                    <td class="p-2 text-center text-xs font-bold">${p.totalQty}</td>
+                    <td class="p-2 text-right text-xs font-bold text-gray-700">${moneyFormatter.format(p.totalNet)}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleSelection(sku, cb) { if (cb.checked) { selectedSKUs.add(sku); cb.closest('tr').className = "bg-blue-50 hover:bg-blue-100"; } else { selectedSKUs.delete(sku); cb.closest('tr').className = "hover:bg-gray-50"; } updateSelectionCounter(); }
+        function updateSelectionCounter() { document.getElementById('selectionCount').innerText = selectedSKUs.size; }
+        function clearSelection() { selectedSKUs.clear(); updateSelectionCounter(); renderTable(document.getElementById('searchInput').value); }
+        document.getElementById('searchInput').addEventListener('keyup', function(e) { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { renderTable(e.target.value); }, 300); });
+
+        function showProductDetail(sku) {
+            const p = productsMap[sku], docs = productDocuments[sku] || [];
+            document.getElementById('detailModalTitle').innerText = p.name;
+            document.getElementById('detailModalSku').innerText = `SKU: ${sku}`;
+            document.getElementById('detailTotalDocs').innerText = docs.length;
+            document.getElementById('detailTotalUnits').innerText = p.totalQty;
+            document.getElementById('detailTotalNet').innerText = moneyFormatter.format(p.totalNet);
+            const tbody = document.getElementById('detailTableBody'); tbody.innerHTML = '';
+            const sorted = [...docs].sort((a, b) => b.fecha.split('/').reverse().join('').localeCompare(a.fecha.split('/').reverse().join('')));
+            sorted.forEach(d => {
+                const tr = document.createElement('tr'); tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `<td class="p-2 font-mono">${d.fecha}</td><td class="p-2">${d.tipoDoc}</td><td class="p-2 font-mono font-bold">${d.numDoc}</td><td class="p-2 truncate max-w-[200px]" title="${d.cliente}">${d.cliente}</td><td class="p-2 text-center font-bold">${d.cantidad}</td><td class="p-2 text-right font-bold">${moneyFormatter.format(d.neto)}</td>`;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('printDetailTitle').innerText = p.name;
+            document.getElementById('printDetailSku').innerText = `SKU: ${sku}`;
+            document.getElementById('printDetailDate').innerText = new Date().toLocaleDateString();
+            document.getElementById('printDetailAuthor').innerText = document.getElementById('reportAuthor').value || '-';
+            document.getElementById('printTotalDocs').innerText = docs.length;
+            document.getElementById('printTotalUnits').innerText = p.totalQty;
+            document.getElementById('printTotalNet').innerText = moneyFormatter.format(p.totalNet);
+            document.getElementById('printDetailTableBody').innerHTML = tbody.innerHTML;
+            document.getElementById('detailModal').classList.remove('hidden-section');
+        }
+        function closeDetailModal() { document.getElementById('detailModal').classList.add('hidden-section'); }
+        function printDetailModal() {
+            document.getElementById('detailModal').classList.add('hidden-section');
+            document.getElementById('detailPrintView').classList.remove('hidden-section');
+            setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('detailPrintView').classList.add('hidden-section'); document.getElementById('detailModal').classList.remove('hidden-section'); }, 500); }, 100);
+        }
+
+        function showGlosasReport() {
+            const tbody = document.getElementById('glosasTableBody'); tbody.innerHTML = '';
+            suspiciousGlosas.forEach(g => {
+                const tr = document.createElement('tr'); tr.className = 'hover:bg-orange-50';
+                tr.innerHTML = `<td class="p-2 font-mono">${g.fecha}</td><td class="p-2 font-mono text-orange-700 font-bold">${g.sku}</td><td class="p-2 truncate max-w-[200px]" title="${g.producto}">${g.producto}</td><td class="p-2">${g.tipoDoc} ${g.numDoc}</td><td class="p-2 truncate max-w-[150px]" title="${g.cliente}">${g.cliente}</td><td class="p-2 text-center font-bold">${g.cantidad}</td><td class="p-2 text-right font-bold">${moneyFormatter.format(g.neto)}</td>`;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('printGlosasDate').innerText = new Date().toLocaleDateString();
+            document.getElementById('printGlosasAuthor').innerText = document.getElementById('reportAuthor').value || '-';
+            document.getElementById('printGlosasTableBody').innerHTML = tbody.innerHTML;
+            document.getElementById('glosasModal').classList.remove('hidden-section');
+        }
+        function closeGlosasModal() { document.getElementById('glosasModal').classList.add('hidden-section'); }
+        function printGlosasReport() {
+            document.getElementById('glosasModal').classList.add('hidden-section');
+            document.getElementById('glosasReportView').classList.remove('hidden-section');
+            setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('glosasReportView').classList.add('hidden-section'); document.getElementById('glosasModal').classList.remove('hidden-section'); }, 500); }, 100);
+        }
+
+        function generateReport() {
+            chartInstances.forEach(c => c.destroy()); chartInstances = [];
+            document.getElementById('chartsContainer').innerHTML = '';
+            if (selectedSKUs.size === 0) { alert("Selecciona productos."); return; }
+            const checkedMonths = document.querySelectorAll('.month-check:checked');
+            const selectedMonths = Array.from(checkedMonths).map(cb => cb.value).sort();
+            if (selectedMonths.length === 0) { alert("Selecciona meses."); return; }
+            const includeCharts = document.getElementById('includeCharts').checked;
+            const tbody = document.getElementById('reportTableBody'); tbody.innerHTML = '';
+            let productsForCharts = [];
+            selectedSKUs.forEach(sku => {
+                const p = productsMap[sku]; if (!p) return;
+                let rowNet = 0, rowUnits = 0, monthHtml = '', chartData = [];
+                selectedMonths.forEach(m => {
+                    const mQty = p.monthlyQty[m] || 0, mNet = p.monthlyNet[m] || 0;
+                    rowNet += mNet; rowUnits += mQty; chartData.push(mQty);
+                    if (mQty !== 0) monthHtml += `<span class="inline-block border border-gray-300 px-1 rounded text-[10px] mr-1 mb-1 font-bold">${m.split('-')[1]}: ${mQty}</span>`;
+                });
+                if (rowUnits !== 0 || rowNet !== 0) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td class="py-2 px-2 border-b"><div class="font-bold text-gray-800 text-xs">${p.name}</div><div class="font-mono text-gray-500 text-[9px]">${p.sku}</div></td><td class="py-2 px-2 border-b">${monthHtml}</td><td class="py-2 px-2 border-b text-right font-bold text-gray-800"><div>${rowUnits} un.</div><div class="text-blue-800 text-[10px]">${moneyFormatter.format(rowNet)}</div></td>`;
+                    tbody.appendChild(tr);
+                    if (includeCharts) productsForCharts.push({ name: p.name, sku: p.sku, data: chartData, months: selectedMonths });
+                }
+            });
+            if (includeCharts && productsForCharts.length > 0) {
+                const container = document.getElementById('chartsContainer');
+                for (let i = 0; i < productsForCharts.length; i += 2) {
+                    const pageDiv = document.createElement('div'); pageDiv.className = 'charts-page';
+                    pageDiv.appendChild(createChartBox(productsForCharts[i]));
+                    if (i + 1 < productsForCharts.length) pageDiv.appendChild(createChartBox(productsForCharts[i + 1]));
+                    container.appendChild(pageDiv);
+                }
+            }
+            document.getElementById('reportDate').innerText = new Date().toLocaleDateString();
+            document.getElementById('reportAuthorDisplay').innerText = document.getElementById('reportAuthor').value || '-';
+            document.getElementById('dashboard').classList.add('hidden-section');
+            document.getElementById('reportView').classList.remove('hidden-section');
+        }
+
+        function createChartBox(prod) {
+            const wrapper = document.createElement('div'); wrapper.className = 'chart-print-box';
+            const title = document.createElement('h3'); title.className = "text-center font-bold text-xs mb-1 text-gray-700"; title.innerText = `${prod.name} (${prod.sku})`;
+            const canvasWrapper = document.createElement('div'); canvasWrapper.className = 'chart-canvas-wrapper';
+            const canvas = document.createElement('canvas'); canvasWrapper.appendChild(canvas);
+            wrapper.appendChild(title); wrapper.appendChild(canvasWrapper);
+            setTimeout(() => {
+                const ctx = canvas.getContext('2d');
+                const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                const newChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: prod.months.map(m => monthNames[parseInt(m.split('-')[1]) - 1]), datasets: [{ label: 'Unidades', data: prod.data, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2563eb', fill: true, tension: 0.2 }] },
+                    options: { animation: false, responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#e5e7eb' } }, x: { ticks: { font: { size: 10 } }, grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { enabled: true } } }
+                });
+                chartInstances.push(newChart);
+            }, 50);
+            return wrapper;
+        }
+
+        function closeReport() { document.getElementById('reportView').classList.add('hidden-section'); document.getElementById('dashboard').classList.remove('hidden-section'); }
+
+        function renderMonthSelectors() {
+            const container = document.getElementById('monthCheckboxes');
+            container.innerHTML = `<label class="flex items-center gap-1 cursor-pointer bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 mr-2 mb-1"><input type="checkbox" id="checkAllMonths" checked onchange="toggleAllMonths(this)"> <b>Todos</b></label>`;
+            const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            availableMonths.forEach(m => {
+                const [year, month] = m.split('-');
+                const label = document.createElement('label');
+                label.className = "flex items-center gap-1 cursor-pointer bg-white border px-2 py-1 rounded mr-2 mb-1";
+                label.innerHTML = `<input type="checkbox" class="month-check" value="${m}" checked> ${monthNames[parseInt(month) - 1]} ${year}`;
+                container.appendChild(label);
+            });
+        }
+        function toggleAllMonths(source) { document.querySelectorAll('.month-check').forEach(cb => cb.checked = source.checked); }
+    </script>
+</body>
+</html>
