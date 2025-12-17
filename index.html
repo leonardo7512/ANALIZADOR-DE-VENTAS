@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador Ventas v13</title>
+    <title>Analizador Ventas v13.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -15,15 +15,31 @@
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50; }
         .modal-content { background: white; padding: 20px; border-radius: 8px; width: 95%; max-width: 1000px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
         .modal-body { overflow-y: auto; flex: 1; }
+        
+        /* Estilos de impresión */
         @media print {
             @page { size: letter; margin: 1.5cm; }
             body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
             .no-print { display: none !important; }
-            #reportView:not(.hidden-section), #detailPrintView:not(.hidden-section), #glosasReportView:not(.hidden-section) { display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; }
-            #reportView.hidden-section, #detailPrintView.hidden-section, #glosasReportView.hidden-section { display: none !important; }
+            
+            /* Asegurar que las vistas de reporte se vean */
+            #reportView:not(.hidden-section), 
+            #detailPrintView:not(.hidden-section), 
+            #glosasReportView:not(.hidden-section) { 
+                display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; 
+            }
+            
+            /* Asegurar que lo oculto siga oculto */
+            #reportView.hidden-section, 
+            #detailPrintView.hidden-section, 
+            #glosasReportView.hidden-section { 
+                display: none !important; 
+            }
+            
             table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 20px; }
             th { background-color: #eee !important; border-bottom: 1px solid #000; padding: 4px; text-align: left; }
             td { border-bottom: 1px solid #ccc; padding: 4px; }
+            
             #chartsContainer { page-break-before: always; }
             .charts-page { page-break-after: always; page-break-inside: avoid; height: 24cm; display: flex; flex-direction: column; justify-content: flex-start; gap: 1cm; }
             .charts-page:last-child { page-break-after: auto; }
@@ -38,7 +54,7 @@
     <div class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
         <div>
             <h1 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas</h1>
-            <p class="text-xs text-gray-500">v13: Detector Glosas + Detalle Docs + Generador</p>
+            <p class="text-xs text-gray-500">v13.5: Clientes en Dashboard + Detector Glosas + Generador</p>
         </div>
         <div class="flex gap-3 items-end">
             <div class="bg-white p-3 rounded shadow border">
@@ -53,6 +69,7 @@
     </div>
 
     <div id="dashboard" class="max-w-7xl mx-auto hidden-section no-print">
+        
         <div id="glosasAlert" class="hidden-section card border-l-4 border-orange-500 bg-orange-50 mb-4">
             <div class="flex justify-between items-center">
                 <div>
@@ -101,7 +118,7 @@
                             <th class="p-2 text-center w-10">#</th>
                             <th class="p-2 text-left w-24">SKU</th>
                             <th class="p-2 text-left">Producto</th>
-                            <th class="p-2 text-center w-16">Docs</th>
+                            <th class="p-2 text-left w-48 text-xs uppercase text-gray-500">Clientes</th> <th class="p-2 text-center w-16">Docs</th>
                             <th class="p-2 text-center w-20">Unds</th>
                             <th class="p-2 text-right w-28">Neto</th>
                         </tr>
@@ -280,19 +297,46 @@
             else { a.classList.add('hidden-section'); }
         }
 
+        // --- FUNCIÓN ACTUALIZADA CON COLUMNA DE CLIENTES ---
         function renderTable(filterText = '') {
-            const tbody = document.getElementById('productsTable'); tbody.innerHTML = '';
+            const tbody = document.getElementById('productsTable'); 
+            tbody.innerHTML = '';
             const term = filterText.toLowerCase();
-            let filtered = Object.values(productsMap).filter(p => !term || p.sku.toLowerCase().includes(term) || p.name.toLowerCase().includes(term));
+            
+            let filtered = Object.values(productsMap).filter(p => 
+                !term || 
+                p.sku.toLowerCase().includes(term) || 
+                p.name.toLowerCase().includes(term)
+            );
+            
             filtered.sort((a, b) => b.totalNet - a.totalNet);
             document.getElementById('resultCount').innerText = filtered.length;
+            
             filtered.slice(0, 100).forEach(p => {
                 const tr = document.createElement('tr');
                 const isChecked = selectedSKUs.has(p.sku);
                 tr.className = isChecked ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50";
+
+                // Lógica de Clientes
+                const docs = productDocuments[p.sku] || [];
+                const uniqueClients = [...new Set(docs.map(d => d.cliente).filter(c => c && c.trim().length > 0))];
+                let clientDisplay = '';
+                if (uniqueClients.length > 0) {
+                    clientDisplay = uniqueClients.slice(0, 2).join(', ');
+                    if (uniqueClients.length > 2) {
+                        clientDisplay += ` <span class="text-gray-400 italic text-[10px]">y ${uniqueClients.length - 2} más</span>`;
+                    }
+                } else {
+                    clientDisplay = '<span class="text-gray-300">-</span>';
+                }
+                const fullClientList = uniqueClients.join(', ');
+
                 tr.innerHTML = `<td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" onchange="toggleSelection('${p.sku}', this)" onclick="event.stopPropagation()" ${isChecked ? 'checked' : ''}></td>
                     <td class="p-2 font-mono text-xs font-bold text-gray-600">${p.sku}</td>
                     <td class="p-2 text-xs text-gray-800 cursor-pointer hover:text-blue-600" onclick="showProductDetail('${p.sku}')">${p.name}</td>
+                    
+                    <td class="p-2 text-xs text-gray-600 truncate max-w-[200px]" title="${fullClientList}">${clientDisplay}</td>
+                    
                     <td class="p-2 text-center"><span class="bg-gray-200 px-2 py-1 rounded text-xs font-bold cursor-pointer hover:bg-blue-200" onclick="showProductDetail('${p.sku}')">${p.docCount}</span></td>
                     <td class="p-2 text-center text-xs font-bold">${p.totalQty}</td>
                     <td class="p-2 text-right text-xs font-bold text-gray-700">${moneyFormatter.format(p.totalNet)}</td>`;
