@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador Ventas v13.5</title>
+    <title>Analizador Ventas v13.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,35 +16,71 @@
         .modal-content { background: white; padding: 20px; border-radius: 8px; width: 95%; max-width: 1000px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
         .modal-body { overflow-y: auto; flex: 1; }
         
-        /* Estilos de impresión */
+        /* --- ESTILOS DE IMPRESIÓN OPTIMIZADOS --- */
         @media print {
-            @page { size: letter; margin: 1.5cm; }
-            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+            @page { 
+                size: letter; 
+                margin: 0.8cm; /* Márgenes más pequeños para aprovechar hoja */
+            }
+            body { 
+                background: white; 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+                margin: 0; 
+                padding: 0; 
+                font-size: 10pt; /* Letra ligeramente más pequeña para imprimir */
+            }
             .no-print { display: none !important; }
             
-            /* Asegurar que las vistas de reporte se vean */
             #reportView:not(.hidden-section), 
             #detailPrintView:not(.hidden-section), 
             #glosasReportView:not(.hidden-section) { 
                 display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; 
             }
             
-            /* Asegurar que lo oculto siga oculto */
             #reportView.hidden-section, 
             #detailPrintView.hidden-section, 
             #glosasReportView.hidden-section { 
                 display: none !important; 
             }
             
-            table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 20px; }
-            th { background-color: #eee !important; border-bottom: 1px solid #000; padding: 4px; text-align: left; }
-            td { border-bottom: 1px solid #ccc; padding: 4px; }
+            /* Tablas */
+            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            th { background-color: #eee !important; border-bottom: 1px solid #000; padding: 4px; text-align: left; font-size: 9pt; }
+            td { border-bottom: 1px solid #ccc; padding: 3px 4px; font-size: 9pt; }
             
-            #chartsContainer { page-break-before: always; }
-            .charts-page { page-break-after: always; page-break-inside: avoid; height: 24cm; display: flex; flex-direction: column; justify-content: flex-start; gap: 1cm; }
-            .charts-page:last-child { page-break-after: auto; }
-            .chart-print-box { width: 100%; height: 11cm !important; min-height: 11cm !important; max-height: 11cm !important; page-break-inside: avoid; border: 1px solid #ddd; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column; }
-            .chart-print-box h3 { flex-shrink: 0; margin-bottom: 5px; }
+            /* EVITAR CORTES EN TABLAS */
+            tr { break-inside: avoid; page-break-inside: avoid; }
+
+            /* CONTENEDOR DE GRÁFICOS */
+            #chartsContainer { 
+                display: block; 
+                width: 100%; 
+                margin-top: 20px;
+                /* Eliminamos page-break-before forzado para que fluya si hay espacio */
+            }
+
+            /* CAJA INDIVIDUAL DE GRÁFICO */
+            .chart-print-box { 
+                width: 100%; 
+                /* Altura reducida para intentar que quepan más */
+                height: 7.5cm !important; 
+                min-height: 7.5cm !important; 
+                max-height: 7.5cm !important; 
+                
+                /* CLAVE: Evita que el gráfico se corte a la mitad */
+                break-inside: avoid; 
+                page-break-inside: avoid; 
+                
+                border: 1px solid #ddd; 
+                padding: 5px; 
+                box-sizing: border-box; 
+                display: flex; 
+                flex-direction: column; 
+                margin-bottom: 15px; /* Espacio entre gráficos */
+            }
+            
+            .chart-print-box h3 { flex-shrink: 0; margin: 0 0 5px 0; font-size: 10pt; }
             .chart-canvas-wrapper { flex: 1; position: relative; min-height: 0; }
             .chart-canvas-wrapper canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
         }
@@ -54,7 +90,7 @@
     <div class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
         <div>
             <h1 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas</h1>
-            <p class="text-xs text-gray-500">v13.5: Clientes en Dashboard + Detector Glosas + Generador</p>
+            <p class="text-xs text-gray-500">v13.6: Impresión Optimizada + Clientes</p>
         </div>
         <div class="flex gap-3 items-end">
             <div class="bg-white p-3 rounded shadow border">
@@ -118,7 +154,8 @@
                             <th class="p-2 text-center w-10">#</th>
                             <th class="p-2 text-left w-24">SKU</th>
                             <th class="p-2 text-left">Producto</th>
-                            <th class="p-2 text-left w-48 text-xs uppercase text-gray-500">Clientes</th> <th class="p-2 text-center w-16">Docs</th>
+                            <th class="p-2 text-left w-48 text-xs uppercase text-gray-500">Clientes</th>
+                            <th class="p-2 text-center w-16">Docs</th>
                             <th class="p-2 text-center w-20">Unds</th>
                             <th class="p-2 text-right w-28">Neto</th>
                         </tr>
@@ -297,46 +334,31 @@
             else { a.classList.add('hidden-section'); }
         }
 
-        // --- FUNCIÓN ACTUALIZADA CON COLUMNA DE CLIENTES ---
         function renderTable(filterText = '') {
-            const tbody = document.getElementById('productsTable'); 
-            tbody.innerHTML = '';
+            const tbody = document.getElementById('productsTable'); tbody.innerHTML = '';
             const term = filterText.toLowerCase();
-            
-            let filtered = Object.values(productsMap).filter(p => 
-                !term || 
-                p.sku.toLowerCase().includes(term) || 
-                p.name.toLowerCase().includes(term)
-            );
-            
+            let filtered = Object.values(productsMap).filter(p => !term || p.sku.toLowerCase().includes(term) || p.name.toLowerCase().includes(term));
             filtered.sort((a, b) => b.totalNet - a.totalNet);
             document.getElementById('resultCount').innerText = filtered.length;
-            
             filtered.slice(0, 100).forEach(p => {
                 const tr = document.createElement('tr');
                 const isChecked = selectedSKUs.has(p.sku);
                 tr.className = isChecked ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50";
-
-                // Lógica de Clientes
+                
+                // Clientes logic
                 const docs = productDocuments[p.sku] || [];
                 const uniqueClients = [...new Set(docs.map(d => d.cliente).filter(c => c && c.trim().length > 0))];
                 let clientDisplay = '';
                 if (uniqueClients.length > 0) {
                     clientDisplay = uniqueClients.slice(0, 2).join(', ');
-                    if (uniqueClients.length > 2) {
-                        clientDisplay += ` <span class="text-gray-400 italic text-[10px]">y ${uniqueClients.length - 2} más</span>`;
-                    }
-                } else {
-                    clientDisplay = '<span class="text-gray-300">-</span>';
-                }
+                    if (uniqueClients.length > 2) clientDisplay += ` <span class="text-gray-400 italic text-[10px]">y ${uniqueClients.length - 2} más</span>`;
+                } else { clientDisplay = '<span class="text-gray-300">-</span>'; }
                 const fullClientList = uniqueClients.join(', ');
 
                 tr.innerHTML = `<td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" onchange="toggleSelection('${p.sku}', this)" onclick="event.stopPropagation()" ${isChecked ? 'checked' : ''}></td>
                     <td class="p-2 font-mono text-xs font-bold text-gray-600">${p.sku}</td>
                     <td class="p-2 text-xs text-gray-800 cursor-pointer hover:text-blue-600" onclick="showProductDetail('${p.sku}')">${p.name}</td>
-                    
                     <td class="p-2 text-xs text-gray-600 truncate max-w-[200px]" title="${fullClientList}">${clientDisplay}</td>
-                    
                     <td class="p-2 text-center"><span class="bg-gray-200 px-2 py-1 rounded text-xs font-bold cursor-pointer hover:bg-blue-200" onclick="showProductDetail('${p.sku}')">${p.docCount}</span></td>
                     <td class="p-2 text-center text-xs font-bold">${p.totalQty}</td>
                     <td class="p-2 text-right text-xs font-bold text-gray-700">${moneyFormatter.format(p.totalNet)}</td>`;
@@ -399,16 +421,21 @@
             setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('glosasReportView').classList.add('hidden-section'); document.getElementById('glosasModal').classList.remove('hidden-section'); }, 500); }, 100);
         }
 
+        // --- GENERADOR DE REPORTE OPTIMIZADO PARA IMPRESIÓN ---
         function generateReport() {
             chartInstances.forEach(c => c.destroy()); chartInstances = [];
-            document.getElementById('chartsContainer').innerHTML = '';
+            const container = document.getElementById('chartsContainer');
+            container.innerHTML = ''; // Limpiar contenedor
+            
             if (selectedSKUs.size === 0) { alert("Selecciona productos."); return; }
             const checkedMonths = document.querySelectorAll('.month-check:checked');
             const selectedMonths = Array.from(checkedMonths).map(cb => cb.value).sort();
             if (selectedMonths.length === 0) { alert("Selecciona meses."); return; }
             const includeCharts = document.getElementById('includeCharts').checked;
+            
             const tbody = document.getElementById('reportTableBody'); tbody.innerHTML = '';
             let productsForCharts = [];
+            
             selectedSKUs.forEach(sku => {
                 const p = productsMap[sku]; if (!p) return;
                 let rowNet = 0, rowUnits = 0, monthHtml = '', chartData = [];
@@ -417,22 +444,25 @@
                     rowNet += mNet; rowUnits += mQty; chartData.push(mQty);
                     if (mQty !== 0) monthHtml += `<span class="inline-block border border-gray-300 px-1 rounded text-[10px] mr-1 mb-1 font-bold">${m.split('-')[1]}: ${mQty}</span>`;
                 });
+                
                 if (rowUnits !== 0 || rowNet !== 0) {
                     const tr = document.createElement('tr');
+                    // Agregamos un div contenedor dentro del TD para mejor control de break, aunque el TR ya tiene break-inside: avoid
                     tr.innerHTML = `<td class="py-2 px-2 border-b"><div class="font-bold text-gray-800 text-xs">${p.name}</div><div class="font-mono text-gray-500 text-[9px]">${p.sku}</div></td><td class="py-2 px-2 border-b">${monthHtml}</td><td class="py-2 px-2 border-b text-right font-bold text-gray-800"><div>${rowUnits} un.</div><div class="text-blue-800 text-[10px]">${moneyFormatter.format(rowNet)}</div></td>`;
                     tbody.appendChild(tr);
                     if (includeCharts) productsForCharts.push({ name: p.name, sku: p.sku, data: chartData, months: selectedMonths });
                 }
             });
+
+            // Lógica de gráficos actualizada: Flujo continuo en lugar de paginado
             if (includeCharts && productsForCharts.length > 0) {
-                const container = document.getElementById('chartsContainer');
-                for (let i = 0; i < productsForCharts.length; i += 2) {
-                    const pageDiv = document.createElement('div'); pageDiv.className = 'charts-page';
-                    pageDiv.appendChild(createChartBox(productsForCharts[i]));
-                    if (i + 1 < productsForCharts.length) pageDiv.appendChild(createChartBox(productsForCharts[i + 1]));
-                    container.appendChild(pageDiv);
-                }
+                // Simplemente agregamos todos los gráficos al contenedor.
+                // CSS (break-inside: avoid) se encargará de mover el gráfico a la siguiente página si no cabe.
+                productsForCharts.forEach(prod => {
+                    container.appendChild(createChartBox(prod));
+                });
             }
+
             document.getElementById('reportDate').innerText = new Date().toLocaleDateString();
             document.getElementById('reportAuthorDisplay').innerText = document.getElementById('reportAuthor').value || '-';
             document.getElementById('dashboard').classList.add('hidden-section');
@@ -440,11 +470,22 @@
         }
 
         function createChartBox(prod) {
-            const wrapper = document.createElement('div'); wrapper.className = 'chart-print-box';
-            const title = document.createElement('h3'); title.className = "text-center font-bold text-xs mb-1 text-gray-700"; title.innerText = `${prod.name} (${prod.sku})`;
-            const canvasWrapper = document.createElement('div'); canvasWrapper.className = 'chart-canvas-wrapper';
-            const canvas = document.createElement('canvas'); canvasWrapper.appendChild(canvas);
-            wrapper.appendChild(title); wrapper.appendChild(canvasWrapper);
+            const wrapper = document.createElement('div'); 
+            wrapper.className = 'chart-print-box'; // Usará el estilo CSS definido arriba
+            
+            const title = document.createElement('h3'); 
+            title.className = "text-center font-bold text-xs mb-1 text-gray-700"; 
+            title.innerText = `${prod.name} (${prod.sku})`;
+            
+            const canvasWrapper = document.createElement('div'); 
+            canvasWrapper.className = 'chart-canvas-wrapper';
+            
+            const canvas = document.createElement('canvas'); 
+            canvasWrapper.appendChild(canvas);
+            
+            wrapper.appendChild(title); 
+            wrapper.appendChild(canvasWrapper);
+            
             setTimeout(() => {
                 const ctx = canvas.getContext('2d');
                 const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
