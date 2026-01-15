@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador Ventas v13.6</title>
+    <title>Analizador Ventas v14.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -16,73 +16,22 @@
         .modal-content { background: white; padding: 20px; border-radius: 8px; width: 95%; max-width: 1000px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
         .modal-body { overflow-y: auto; flex: 1; }
         
-        /* --- ESTILOS DE IMPRESIÓN OPTIMIZADOS --- */
         @media print {
-            @page { 
-                size: letter; 
-                margin: 0.8cm; /* Márgenes más pequeños para aprovechar hoja */
-            }
-            body { 
-                background: white; 
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
-                margin: 0; 
-                padding: 0; 
-                font-size: 10pt; /* Letra ligeramente más pequeña para imprimir */
-            }
+            @page { size: letter; margin: 0.8cm; }
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; font-size: 10pt; }
             .no-print { display: none !important; }
-            
-            #reportView:not(.hidden-section), 
-            #detailPrintView:not(.hidden-section), 
-            #glosasReportView:not(.hidden-section) { 
-                display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; 
-            }
-            
-            #reportView.hidden-section, 
-            #detailPrintView.hidden-section, 
-            #glosasReportView.hidden-section { 
-                display: none !important; 
-            }
-            
-            /* Tablas */
+            #reportView:not(.hidden-section), #detailPrintView:not(.hidden-section), #glosasReportView:not(.hidden-section) { display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; }
+            #reportView.hidden-section, #detailPrintView.hidden-section, #glosasReportView.hidden-section { display: none !important; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
             th { background-color: #eee !important; border-bottom: 1px solid #000; padding: 4px; text-align: left; font-size: 9pt; }
             td { border-bottom: 1px solid #ccc; padding: 3px 4px; font-size: 9pt; }
-            
-            /* EVITAR CORTES EN TABLAS */
             tr { break-inside: avoid; page-break-inside: avoid; }
-
-            /* CONTENEDOR DE GRÁFICOS */
-            #chartsContainer { 
-                display: block; 
-                width: 100%; 
-                margin-top: 20px;
-                /* Eliminamos page-break-before forzado para que fluya si hay espacio */
-            }
-
-            /* CAJA INDIVIDUAL DE GRÁFICO */
-            .chart-print-box { 
-                width: 100%; 
-                /* Altura reducida para intentar que quepan más */
-                height: 7.5cm !important; 
-                min-height: 7.5cm !important; 
-                max-height: 7.5cm !important; 
-                
-                /* CLAVE: Evita que el gráfico se corte a la mitad */
-                break-inside: avoid; 
-                page-break-inside: avoid; 
-                
-                border: 1px solid #ddd; 
-                padding: 5px; 
-                box-sizing: border-box; 
-                display: flex; 
-                flex-direction: column; 
-                margin-bottom: 15px; /* Espacio entre gráficos */
-            }
-            
+            #chartsContainer { display: block; width: 100%; margin-top: 20px; }
+            .chart-print-box { width: 100%; height: 7.5cm !important; min-height: 7.5cm !important; max-height: 7.5cm !important; break-inside: avoid; page-break-inside: avoid; border: 1px solid #ddd; padding: 5px; box-sizing: border-box; display: flex; flex-direction: column; margin-bottom: 15px; }
             .chart-print-box h3 { flex-shrink: 0; margin: 0 0 5px 0; font-size: 10pt; }
             .chart-canvas-wrapper { flex: 1; position: relative; min-height: 0; }
             .chart-canvas-wrapper canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
+            .price-info-box { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10px; }
         }
     </style>
 </head>
@@ -90,7 +39,7 @@
     <div class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
         <div>
             <h1 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas</h1>
-            <p class="text-xs text-gray-500">v13.6: Impresión Optimizada + Clientes</p>
+            <p class="text-xs text-gray-500">v14.0: Análisis de Precios Históricos</p>
         </div>
         <div class="flex gap-3 items-end">
             <div class="bg-white p-3 rounded shadow border">
@@ -136,6 +85,10 @@
                     <input type="checkbox" id="includeCharts" class="w-4 h-4 cursor-pointer">
                     <label for="includeCharts" class="ml-2 text-xs font-bold text-gray-700 cursor-pointer">Gráficos</label>
                 </div>
+                <div class="flex items-center bg-white px-2 py-1 rounded border shadow-sm">
+                    <input type="checkbox" id="includePrices" class="w-4 h-4 cursor-pointer" checked>
+                    <label for="includePrices" class="ml-2 text-xs font-bold text-gray-700 cursor-pointer">Análisis Precios</label>
+                </div>
             </div>
         </div>
 
@@ -158,6 +111,7 @@
                             <th class="p-2 text-center w-16">Docs</th>
                             <th class="p-2 text-center w-20">Unds</th>
                             <th class="p-2 text-right w-28">Neto</th>
+                            <th class="p-2 text-right w-28">P.Prom</th>
                         </tr>
                     </thead>
                     <tbody id="productsTable" class="divide-y divide-gray-200"></tbody>
@@ -179,15 +133,16 @@
                 </div>
             </div>
             <div class="modal-body">
-                <div class="mb-3 flex gap-4 text-sm">
+                <div class="mb-3 flex gap-4 text-sm flex-wrap">
                     <div class="bg-blue-50 px-3 py-2 rounded"><span class="text-gray-600">Docs:</span> <strong id="detailTotalDocs">0</strong></div>
                     <div class="bg-green-50 px-3 py-2 rounded"><span class="text-gray-600">Unidades:</span> <strong id="detailTotalUnits">0</strong></div>
                     <div class="bg-purple-50 px-3 py-2 rounded"><span class="text-gray-600">Neto:</span> <strong id="detailTotalNet">$0</strong></div>
+                    <div class="bg-yellow-50 px-3 py-2 rounded"><span class="text-gray-600">Precio Prom:</span> <strong id="detailAvgPrice">$0</strong></div>
                 </div>
                 <div class="overflow-x-auto border rounded max-h-[50vh] overflow-y-auto">
                     <table class="min-w-full text-xs">
                         <thead class="bg-gray-100 sticky top-0">
-                            <tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr>
+                            <tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">P.Unit</th><th class="p-2 text-right">Neto</th></tr>
                         </thead>
                         <tbody id="detailTableBody"></tbody>
                     </table>
@@ -237,6 +192,7 @@
             <thead><tr class="bg-gray-100 text-gray-700 text-xs uppercase"><th class="py-2 px-2 text-left w-2/5">Producto</th><th class="py-2 px-2 text-left w-2/5">Meses</th><th class="py-2 px-2 text-right w-1/5">Totales</th></tr></thead>
             <tbody id="reportTableBody" class="divide-y divide-gray-200"></tbody>
         </table>
+        <div id="pricesContainer"></div>
         <div id="chartsContainer"></div>
     </div>
 
@@ -248,10 +204,10 @@
             <p class="text-xs mt-2">Fecha: <span id="printDetailDate">-</span> | Por: <span id="printDetailAuthor">-</span></p>
         </div>
         <table class="w-full text-xs mb-4">
-            <thead class="bg-gray-100"><tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr></thead>
+            <thead class="bg-gray-100"><tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">P.Unit</th><th class="p-2 text-right">Neto</th></tr></thead>
             <tbody id="printDetailTableBody"></tbody>
         </table>
-        <div class="border-t pt-2 text-right text-sm"><strong>Docs:</strong> <span id="printTotalDocs">0</span> | <strong>Unds:</strong> <span id="printTotalUnits">0</span> | <strong>Neto:</strong> <span id="printTotalNet">$0</span></div>
+        <div class="border-t pt-2 text-right text-sm"><strong>Docs:</strong> <span id="printTotalDocs">0</span> | <strong>Unds:</strong> <span id="printTotalUnits">0</span> | <strong>Neto:</strong> <span id="printTotalNet">$0</span> | <strong>P.Prom:</strong> <span id="printAvgPrice">$0</span></div>
     </div>
 
     <div id="glosasReportView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
@@ -315,17 +271,70 @@
                 const tipoDoc = row['Tipo de Documento'] || '';
                 const numDoc = row['Numero Documento'] || '';
                 const cliente = row['Nombre Cliente'] || '';
+                
+                // Calcular precio unitario
+                const unitPrice = qty !== 0 ? netTotal / qty : 0;
+                
                 if (isSuspiciousGlosa(sku, name)) suspiciousGlosas.push({ fecha: dateStr, sku, producto: name, tipoDoc, numDoc, cliente, cantidad: qty, neto: netTotal });
                 if (qty !== 0 || netTotal !== 0) {
-                    if (!productsMap[sku]) { productsMap[sku] = { sku, name, totalQty: 0, totalNet: 0, monthlyNet: {}, monthlyQty: {}, docCount: 0 }; productDocuments[sku] = []; }
-                    productsMap[sku].totalQty += qty; productsMap[sku].totalNet += netTotal; productsMap[sku].docCount++;
-                    if (!productsMap[sku].monthlyNet[monthKey]) { productsMap[sku].monthlyNet[monthKey] = 0; productsMap[sku].monthlyQty[monthKey] = 0; }
-                    productsMap[sku].monthlyNet[monthKey] += netTotal; productsMap[sku].monthlyQty[monthKey] += qty;
-                    productDocuments[sku].push({ fecha: dateStr, tipoDoc, numDoc, cliente, cantidad: qty, neto: netTotal });
+                    if (!productsMap[sku]) { 
+                        productsMap[sku] = { 
+                            sku, name, totalQty: 0, totalNet: 0, 
+                            monthlyNet: {}, monthlyQty: {}, monthlyPrices: {},
+                            docCount: 0, priceHistory: [] 
+                        }; 
+                        productDocuments[sku] = []; 
+                    }
+                    productsMap[sku].totalQty += qty; 
+                    productsMap[sku].totalNet += netTotal; 
+                    productsMap[sku].docCount++;
+                    
+                    // Guardar histórico de precios
+                    if (qty !== 0) {
+                        productsMap[sku].priceHistory.push({
+                            fecha: dateStr,
+                            precio: unitPrice,
+                            cantidad: qty,
+                            neto: netTotal
+                        });
+                    }
+                    
+                    if (!productsMap[sku].monthlyNet[monthKey]) { 
+                        productsMap[sku].monthlyNet[monthKey] = 0; 
+                        productsMap[sku].monthlyQty[monthKey] = 0; 
+                        productsMap[sku].monthlyPrices[monthKey] = [];
+                    }
+                    productsMap[sku].monthlyNet[monthKey] += netTotal; 
+                    productsMap[sku].monthlyQty[monthKey] += qty;
+                    if (qty !== 0) {
+                        productsMap[sku].monthlyPrices[monthKey].push(unitPrice);
+                    }
+                    
+                    productDocuments[sku].push({ 
+                        fecha: dateStr, tipoDoc, numDoc, cliente, 
+                        cantidad: qty, neto: netTotal, precioUnit: unitPrice 
+                    });
                 }
             });
             availableMonths = [...new Set(Object.values(productsMap).flatMap(p => Object.keys(p.monthlyNet)))].sort();
             renderTable(''); renderMonthSelectors(); updateGlosasAlert();
+        }
+
+        function calculateAvgPrice(product) {
+            if (product.totalQty === 0) return 0;
+            return product.totalNet / product.totalQty;
+        }
+
+        function getMonthlyAvgPrice(product, monthKey) {
+            const prices = product.monthlyPrices[monthKey];
+            if (!prices || prices.length === 0) return 0;
+            const sum = prices.reduce((a, b) => a + b, 0);
+            return sum / prices.length;
+        }
+
+        function getPriceOnDate(product, dateStr) {
+            const doc = product.priceHistory.find(p => p.fecha === dateStr);
+            return doc ? doc.precio : null;
         }
 
         function updateGlosasAlert() {
@@ -345,7 +354,6 @@
                 const isChecked = selectedSKUs.has(p.sku);
                 tr.className = isChecked ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50";
                 
-                // Clientes logic
                 const docs = productDocuments[p.sku] || [];
                 const uniqueClients = [...new Set(docs.map(d => d.cliente).filter(c => c && c.trim().length > 0))];
                 let clientDisplay = '';
@@ -354,6 +362,8 @@
                     if (uniqueClients.length > 2) clientDisplay += ` <span class="text-gray-400 italic text-[10px]">y ${uniqueClients.length - 2} más</span>`;
                 } else { clientDisplay = '<span class="text-gray-300">-</span>'; }
                 const fullClientList = uniqueClients.join(', ');
+                
+                const avgPrice = calculateAvgPrice(p);
 
                 tr.innerHTML = `<td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" onchange="toggleSelection('${p.sku}', this)" onclick="event.stopPropagation()" ${isChecked ? 'checked' : ''}></td>
                     <td class="p-2 font-mono text-xs font-bold text-gray-600">${p.sku}</td>
@@ -361,7 +371,8 @@
                     <td class="p-2 text-xs text-gray-600 truncate max-w-[200px]" title="${fullClientList}">${clientDisplay}</td>
                     <td class="p-2 text-center"><span class="bg-gray-200 px-2 py-1 rounded text-xs font-bold cursor-pointer hover:bg-blue-200" onclick="showProductDetail('${p.sku}')">${p.docCount}</span></td>
                     <td class="p-2 text-center text-xs font-bold">${p.totalQty}</td>
-                    <td class="p-2 text-right text-xs font-bold text-gray-700">${moneyFormatter.format(p.totalNet)}</td>`;
+                    <td class="p-2 text-right text-xs font-bold text-gray-700">${moneyFormatter.format(p.totalNet)}</td>
+                    <td class="p-2 text-right text-xs font-bold text-green-700">${moneyFormatter.format(avgPrice)}</td>`;
                 tbody.appendChild(tr);
             });
         }
@@ -373,18 +384,23 @@
 
         function showProductDetail(sku) {
             const p = productsMap[sku], docs = productDocuments[sku] || [];
+            const avgPrice = calculateAvgPrice(p);
+            
             document.getElementById('detailModalTitle').innerText = p.name;
             document.getElementById('detailModalSku').innerText = `SKU: ${sku}`;
             document.getElementById('detailTotalDocs').innerText = docs.length;
             document.getElementById('detailTotalUnits').innerText = p.totalQty;
             document.getElementById('detailTotalNet').innerText = moneyFormatter.format(p.totalNet);
+            document.getElementById('detailAvgPrice').innerText = moneyFormatter.format(avgPrice);
+            
             const tbody = document.getElementById('detailTableBody'); tbody.innerHTML = '';
             const sorted = [...docs].sort((a, b) => b.fecha.split('/').reverse().join('').localeCompare(a.fecha.split('/').reverse().join('')));
             sorted.forEach(d => {
                 const tr = document.createElement('tr'); tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `<td class="p-2 font-mono">${d.fecha}</td><td class="p-2">${d.tipoDoc}</td><td class="p-2 font-mono font-bold">${d.numDoc}</td><td class="p-2 truncate max-w-[200px]" title="${d.cliente}">${d.cliente}</td><td class="p-2 text-center font-bold">${d.cantidad}</td><td class="p-2 text-right font-bold">${moneyFormatter.format(d.neto)}</td>`;
+                tr.innerHTML = `<td class="p-2 font-mono">${d.fecha}</td><td class="p-2">${d.tipoDoc}</td><td class="p-2 font-mono font-bold">${d.numDoc}</td><td class="p-2 truncate max-w-[200px]" title="${d.cliente}">${d.cliente}</td><td class="p-2 text-center font-bold">${d.cantidad}</td><td class="p-2 text-right text-green-600">${moneyFormatter.format(d.precioUnit)}</td><td class="p-2 text-right font-bold">${moneyFormatter.format(d.neto)}</td>`;
                 tbody.appendChild(tr);
             });
+            
             document.getElementById('printDetailTitle').innerText = p.name;
             document.getElementById('printDetailSku').innerText = `SKU: ${sku}`;
             document.getElementById('printDetailDate').innerText = new Date().toLocaleDateString();
@@ -392,9 +408,11 @@
             document.getElementById('printTotalDocs').innerText = docs.length;
             document.getElementById('printTotalUnits').innerText = p.totalQty;
             document.getElementById('printTotalNet').innerText = moneyFormatter.format(p.totalNet);
+            document.getElementById('printAvgPrice').innerText = moneyFormatter.format(avgPrice);
             document.getElementById('printDetailTableBody').innerHTML = tbody.innerHTML;
             document.getElementById('detailModal').classList.remove('hidden-section');
         }
+        
         function closeDetailModal() { document.getElementById('detailModal').classList.add('hidden-section'); }
         function printDetailModal() {
             document.getElementById('detailModal').classList.add('hidden-section');
@@ -421,17 +439,19 @@
             setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('glosasReportView').classList.add('hidden-section'); document.getElementById('glosasModal').classList.remove('hidden-section'); }, 500); }, 100);
         }
 
-        // --- GENERADOR DE REPORTE OPTIMIZADO PARA IMPRESIÓN ---
         function generateReport() {
             chartInstances.forEach(c => c.destroy()); chartInstances = [];
-            const container = document.getElementById('chartsContainer');
-            container.innerHTML = ''; // Limpiar contenedor
+            const chartContainer = document.getElementById('chartsContainer');
+            const pricesContainer = document.getElementById('pricesContainer');
+            chartContainer.innerHTML = '';
+            pricesContainer.innerHTML = '';
             
             if (selectedSKUs.size === 0) { alert("Selecciona productos."); return; }
             const checkedMonths = document.querySelectorAll('.month-check:checked');
             const selectedMonths = Array.from(checkedMonths).map(cb => cb.value).sort();
             if (selectedMonths.length === 0) { alert("Selecciona meses."); return; }
             const includeCharts = document.getElementById('includeCharts').checked;
+            const includePrices = document.getElementById('includePrices').checked;
             
             const tbody = document.getElementById('reportTableBody'); tbody.innerHTML = '';
             let productsForCharts = [];
@@ -447,19 +467,84 @@
                 
                 if (rowUnits !== 0 || rowNet !== 0) {
                     const tr = document.createElement('tr');
-                    // Agregamos un div contenedor dentro del TD para mejor control de break, aunque el TR ya tiene break-inside: avoid
                     tr.innerHTML = `<td class="py-2 px-2 border-b"><div class="font-bold text-gray-800 text-xs">${p.name}</div><div class="font-mono text-gray-500 text-[9px]">${p.sku}</div></td><td class="py-2 px-2 border-b">${monthHtml}</td><td class="py-2 px-2 border-b text-right font-bold text-gray-800"><div>${rowUnits} un.</div><div class="text-blue-800 text-[10px]">${moneyFormatter.format(rowNet)}</div></td>`;
                     tbody.appendChild(tr);
                     if (includeCharts) productsForCharts.push({ name: p.name, sku: p.sku, data: chartData, months: selectedMonths });
                 }
             });
 
-            // Lógica de gráficos actualizada: Flujo continuo en lugar de paginado
+            // Generar análisis de precios
+            if (includePrices) {
+                const pricesSection = document.createElement('div');
+                pricesSection.className = 'mb-6';
+                pricesSection.innerHTML = '<h2 class="text-lg font-bold mb-3 border-b-2 border-gray-300 pb-2"><i class="fas fa-tags text-green-600"></i> Análisis de Precios</h2>';
+                
+                selectedSKUs.forEach(sku => {
+                    const p = productsMap[sku]; if (!p) return;
+                    const avgPrice = calculateAvgPrice(p);
+                    
+                    const priceBox = document.createElement('div');
+                    priceBox.className = 'price-info-box border border-gray-300 rounded p-3 mb-3 bg-gray-50';
+                    
+                    let monthlyPricesHtml = '<div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">';
+                    selectedMonths.forEach(m => {
+                        const monthAvg = getMonthlyAvgPrice(p, m);
+                        if (monthAvg > 0) {
+                            const monthName = m.split('-')[1] + '/' + m.split('-')[0].slice(2);
+                            monthlyPricesHtml += `<div class="bg-white border border-blue-200 rounded px-2 py-1 text-xs">
+                                <div class="text-gray-600 font-bold">${monthName}</div>
+                                <div class="text-green-700 font-bold">${moneyFormatter.format(monthAvg)}</div>
+                            </div>`;
+                        }
+                    });
+                    monthlyPricesHtml += '</div>';
+                    
+                    // Obtener variación de precios
+                    let minPrice = Infinity, maxPrice = -Infinity;
+                    p.priceHistory.forEach(ph => {
+                        if (ph.precio < minPrice) minPrice = ph.precio;
+                        if (ph.precio > maxPrice) maxPrice = ph.precio;
+                    });
+                    const priceVariation = minPrice !== Infinity ? ((maxPrice - minPrice) / minPrice * 100).toFixed(1) : 0;
+                    
+                    priceBox.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-bold text-sm text-gray-800">${p.name}</h3>
+                                <p class="text-xs text-gray-500">SKU: ${p.sku}</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs text-gray-600">Precio Promedio</div>
+                                <div class="text-lg font-bold text-green-700">${moneyFormatter.format(avgPrice)}</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 mb-2 text-xs">
+                            <div class="bg-white border rounded px-2 py-1">
+                                <div class="text-gray-600">Precio Min</div>
+                                <div class="font-bold text-orange-600">${minPrice !== Infinity ? moneyFormatter.format(minPrice) : '-'}</div>
+                            </div>
+                            <div class="bg-white border rounded px-2 py-1">
+                                <div class="text-gray-600">Precio Max</div>
+                                <div class="font-bold text-blue-600">${maxPrice !== -Infinity ? moneyFormatter.format(maxPrice) : '-'}</div>
+                            </div>
+                            <div class="bg-white border rounded px-2 py-1">
+                                <div class="text-gray-600">Variación</div>
+                                <div class="font-bold text-purple-600">${priceVariation}%</div>
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-gray-700 mb-1">Precios por Mes:</div>
+                        ${monthlyPricesHtml}
+                    `;
+                    
+                    pricesSection.appendChild(priceBox);
+                });
+                
+                pricesContainer.appendChild(pricesSection);
+            }
+
             if (includeCharts && productsForCharts.length > 0) {
-                // Simplemente agregamos todos los gráficos al contenedor.
-                // CSS (break-inside: avoid) se encargará de mover el gráfico a la siguiente página si no cabe.
                 productsForCharts.forEach(prod => {
-                    container.appendChild(createChartBox(prod));
+                    chartContainer.appendChild(createChartBox(prod));
                 });
             }
 
@@ -471,7 +556,7 @@
 
         function createChartBox(prod) {
             const wrapper = document.createElement('div'); 
-            wrapper.className = 'chart-print-box'; // Usará el estilo CSS definido arriba
+            wrapper.className = 'chart-print-box';
             
             const title = document.createElement('h3'); 
             title.className = "text-center font-bold text-xs mb-1 text-gray-700"; 
