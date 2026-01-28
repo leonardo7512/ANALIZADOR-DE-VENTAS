@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador Ventas v14.0</title>
+    <title>Analizador Ventas v14.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -17,21 +17,89 @@
         .modal-body { overflow-y: auto; flex: 1; }
         
         @media print {
-            @page { size: letter; margin: 0.8cm; }
+            @page { size: letter landscape; margin: 0.8cm; }
             body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; font-size: 10pt; }
             .no-print { display: none !important; }
-            #reportView:not(.hidden-section), #detailPrintView:not(.hidden-section), #glosasReportView:not(.hidden-section) { display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; }
-            #reportView.hidden-section, #detailPrintView.hidden-section, #glosasReportView.hidden-section { display: none !important; }
+            
+            /* Vista de reporte principal */
+            #reportView:not(.hidden-section), #detailPrintView:not(.hidden-section), #glosasReportView:not(.hidden-section) { 
+                display: block !important; width: 100%; margin: 0; padding: 0; box-shadow: none; 
+            }
+            #reportView.hidden-section, #detailPrintView.hidden-section, #glosasReportView.hidden-section { 
+                display: none !important; 
+            }
+            
+            /* Páginas de gráficos */
+            .charts-page {
+                page-break-before: always;
+                width: 100%;
+                height: 100vh;
+                display: flex !important;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                padding: 1cm;
+            }
+            
+            .chart-print-box {
+                width: 100%;
+                max-width: 24cm;
+                height: 14cm !important;
+                min-height: 14cm !important;
+                max-height: 14cm !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+                border: 1px solid #ddd;
+                padding: 10px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                margin: 0 auto 2cm auto;
+                background: white;
+            }
+            
+            .chart-print-box h3 {
+                flex-shrink: 0;
+                margin: 0 0 10px 0;
+                font-size: 12pt;
+                text-align: center;
+            }
+            
+            .chart-canvas-wrapper {
+                flex: 1;
+                position: relative;
+                min-height: 0;
+            }
+            
+            .chart-canvas-wrapper canvas {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100% !important;
+                height: 100% !important;
+            }
+            
+            /* Tablas y contenido general */
             table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
             th { background-color: #eee !important; border-bottom: 1px solid #000; padding: 4px; text-align: left; font-size: 9pt; }
             td { border-bottom: 1px solid #ccc; padding: 3px 4px; font-size: 9pt; }
             tr { break-inside: avoid; page-break-inside: avoid; }
-            #chartsContainer { display: block; width: 100%; margin-top: 20px; }
-            .chart-print-box { width: 100%; height: 7.5cm !important; min-height: 7.5cm !important; max-height: 7.5cm !important; break-inside: avoid; page-break-inside: avoid; border: 1px solid #ddd; padding: 5px; box-sizing: border-box; display: flex; flex-direction: column; margin-bottom: 15px; }
-            .chart-print-box h3 { flex-shrink: 0; margin: 0 0 5px 0; font-size: 10pt; }
-            .chart-canvas-wrapper { flex: 1; position: relative; min-height: 0; }
-            .chart-canvas-wrapper canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
-            .price-info-box { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10px; }
+            
+            .price-info-box { 
+                break-inside: avoid; 
+                page-break-inside: avoid; 
+                margin-bottom: 10px; 
+            }
+            
+            .methodology-note {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-top: 15px;
+                padding: 10px;
+                border: 1px solid #ddd;
+                background-color: #f9f9f9;
+                font-size: 8pt;
+            }
         }
     </style>
 </head>
@@ -39,13 +107,9 @@
     <div class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
         <div>
             <h1 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas</h1>
-            <p class="text-xs text-gray-500">v14.0: Análisis de Precios Históricos</p>
+            <p class="text-xs text-gray-500">v14.1: Gráficos Optimizados + Nota Metodológica</p>
         </div>
         <div class="flex gap-3 items-end">
-            <div class="bg-white p-3 rounded shadow border">
-                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Generado por:</label>
-                <input type="text" id="reportAuthor" placeholder="Tu nombre..." class="border p-2 rounded w-48 text-sm outline-none bg-gray-50 focus:bg-white">
-            </div>
             <div class="bg-white p-3 rounded shadow border">
                 <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cargar CSV:</label>
                 <input type="file" id="uploadCsv" accept=".csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
@@ -181,7 +245,7 @@
             <div><h1 class="text-xl font-bold uppercase text-gray-900">Informe de Ventas</h1></div>
             <div class="text-right">
                 <p class="text-xs text-gray-500">Emisión: <span id="reportDate">-</span></p>
-                <p class="text-xs text-gray-600">Por: <strong id="reportAuthorDisplay">-</strong></p>
+                <p class="text-xs text-gray-600">Por: <strong>LEONARDO CASTRO</strong></p>
                 <div class="mt-2 no-print flex gap-2 justify-end">
                     <button onclick="closeReport()" class="bg-gray-200 px-3 py-1 rounded text-xs">Volver</button>
                     <button onclick="window.print()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs">Imprimir</button>
@@ -201,7 +265,7 @@
             <h1 class="text-xl font-bold uppercase">Detalle de Ventas</h1>
             <p class="text-sm" id="printDetailTitle">-</p>
             <p class="text-xs text-gray-500" id="printDetailSku">-</p>
-            <p class="text-xs mt-2">Fecha: <span id="printDetailDate">-</span> | Por: <span id="printDetailAuthor">-</span></p>
+            <p class="text-xs mt-2">Fecha: <span id="printDetailDate">-</span> | Por: <strong>LEONARDO CASTRO</strong></p>
         </div>
         <table class="w-full text-xs mb-4">
             <thead class="bg-gray-100"><tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">Tipo</th><th class="p-2 text-left">N° Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">P.Unit</th><th class="p-2 text-right">Neto</th></tr></thead>
@@ -213,7 +277,7 @@
     <div id="glosasReportView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
         <div class="border-b-2 border-orange-500 pb-4 mb-4">
             <h1 class="text-xl font-bold uppercase text-orange-800">⚠️ Glosas Sospechosas</h1>
-            <p class="text-xs mt-2">Fecha: <span id="printGlosasDate">-</span> | Por: <span id="printGlosasAuthor">-</span></p>
+            <p class="text-xs mt-2">Fecha: <span id="printGlosasDate">-</span> | Por: <strong>LEONARDO CASTRO</strong></p>
         </div>
         <table class="w-full text-xs">
             <thead class="bg-orange-100"><tr><th class="p-2 text-left">Fecha</th><th class="p-2 text-left">SKU</th><th class="p-2 text-left">Producto</th><th class="p-2 text-left">Doc</th><th class="p-2 text-left">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">Neto</th></tr></thead>
@@ -272,7 +336,6 @@
                 const numDoc = row['Numero Documento'] || '';
                 const cliente = row['Nombre Cliente'] || '';
                 
-                // Calcular precio unitario
                 const unitPrice = qty !== 0 ? netTotal / qty : 0;
                 
                 if (isSuspiciousGlosa(sku, name)) suspiciousGlosas.push({ fecha: dateStr, sku, producto: name, tipoDoc, numDoc, cliente, cantidad: qty, neto: netTotal });
@@ -289,7 +352,6 @@
                     productsMap[sku].totalNet += netTotal; 
                     productsMap[sku].docCount++;
                     
-                    // Guardar histórico de precios
                     if (qty !== 0) {
                         productsMap[sku].priceHistory.push({
                             fecha: dateStr,
@@ -404,7 +466,6 @@
             document.getElementById('printDetailTitle').innerText = p.name;
             document.getElementById('printDetailSku').innerText = `SKU: ${sku}`;
             document.getElementById('printDetailDate').innerText = new Date().toLocaleDateString();
-            document.getElementById('printDetailAuthor').innerText = document.getElementById('reportAuthor').value || '-';
             document.getElementById('printTotalDocs').innerText = docs.length;
             document.getElementById('printTotalUnits').innerText = p.totalQty;
             document.getElementById('printTotalNet').innerText = moneyFormatter.format(p.totalNet);
@@ -428,7 +489,6 @@
                 tbody.appendChild(tr);
             });
             document.getElementById('printGlosasDate').innerText = new Date().toLocaleDateString();
-            document.getElementById('printGlosasAuthor').innerText = document.getElementById('reportAuthor').value || '-';
             document.getElementById('printGlosasTableBody').innerHTML = tbody.innerHTML;
             document.getElementById('glosasModal').classList.remove('hidden-section');
         }
@@ -539,17 +599,40 @@
                     pricesSection.appendChild(priceBox);
                 });
                 
+                // AGREGAR NOTA METODOLÓGICA
+                const methodologyNote = document.createElement('div');
+                methodologyNote.className = 'methodology-note';
+                methodologyNote.innerHTML = `
+                    <h4 class="font-bold text-xs mb-2"><i class="fas fa-info-circle"></i> Nota Metodológica - Cálculo de Precios</h4>
+                    <p class="text-xs leading-relaxed mb-1">
+                        <strong>Precio Promedio General:</strong> Calculado como el cociente entre la venta total neta acumulada y las unidades totales vendidas 
+                        en el período analizado (Precio Promedio = Σ Venta Neta / Σ Unidades).
+                    </p>
+                    <p class="text-xs leading-relaxed mb-1">
+                        <strong>Precio Promedio Mensual:</strong> Obtenido mediante el promedio aritmético de todos los precios unitarios registrados en cada mes, 
+                        donde cada precio unitario se calcula por documento como: Precio Unit = Venta Neta del Doc / Cantidad del Doc.
+                    </p>
+                    <p class="text-xs leading-relaxed">
+                        <strong>Variación de Precio:</strong> Porcentaje de variación calculado entre el precio unitario mínimo y máximo registrado en todo el 
+                        historial de ventas del producto: Variación % = [(Precio Max - Precio Min) / Precio Min] × 100.
+                    </p>
+                `;
+                pricesSection.appendChild(methodologyNote);
+                
                 pricesContainer.appendChild(pricesSection);
             }
 
+            // Generar gráficos en páginas separadas
             if (includeCharts && productsForCharts.length > 0) {
                 productsForCharts.forEach(prod => {
-                    chartContainer.appendChild(createChartBox(prod));
+                    const chartPage = document.createElement('div');
+                    chartPage.className = 'charts-page';
+                    chartPage.appendChild(createChartBox(prod));
+                    chartContainer.appendChild(chartPage);
                 });
             }
 
             document.getElementById('reportDate').innerText = new Date().toLocaleDateString();
-            document.getElementById('reportAuthorDisplay').innerText = document.getElementById('reportAuthor').value || '-';
             document.getElementById('dashboard').classList.add('hidden-section');
             document.getElementById('reportView').classList.remove('hidden-section');
         }
@@ -559,7 +642,7 @@
             wrapper.className = 'chart-print-box';
             
             const title = document.createElement('h3'); 
-            title.className = "text-center font-bold text-xs mb-1 text-gray-700"; 
+            title.className = "text-center font-bold text-base mb-2 text-gray-800"; 
             title.innerText = `${prod.name} (${prod.sku})`;
             
             const canvasWrapper = document.createElement('div'); 
@@ -576,8 +659,63 @@
                 const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
                 const newChart = new Chart(ctx, {
                     type: 'line',
-                    data: { labels: prod.months.map(m => monthNames[parseInt(m.split('-')[1]) - 1]), datasets: [{ label: 'Unidades', data: prod.data, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#2563eb', fill: true, tension: 0.2 }] },
-                    options: { animation: false, responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: '#e5e7eb' } }, x: { ticks: { font: { size: 10 } }, grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { enabled: true } } }
+                    data: { 
+                        labels: prod.months.map(m => monthNames[parseInt(m.split('-')[1]) - 1]), 
+                        datasets: [{ 
+                            label: 'Unidades', 
+                            data: prod.data, 
+                            borderColor: '#2563eb', 
+                            backgroundColor: 'rgba(37,99,235,0.1)', 
+                            borderWidth: 3, 
+                            pointRadius: 6, 
+                            pointBackgroundColor: '#2563eb', 
+                            fill: true, 
+                            tension: 0.3 
+                        }] 
+                    },
+                    options: { 
+                        animation: false, 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                ticks: { 
+                                    font: { size: 14 }
+                                }, 
+                                grid: { color: '#e5e7eb' },
+                                title: {
+                                    display: true,
+                                    text: 'Unidades Vendidas',
+                                    font: { size: 14, weight: 'bold' }
+                                }
+                            }, 
+                            x: { 
+                                ticks: { 
+                                    font: { size: 14 }
+                                }, 
+                                grid: { display: false },
+                                title: {
+                                    display: true,
+                                    text: 'Período',
+                                    font: { size: 14, weight: 'bold' }
+                                }
+                            } 
+                        }, 
+                        plugins: { 
+                            legend: { 
+                                display: true,
+                                labels: {
+                                    font: { size: 14 }
+                                }
+                            }, 
+                            tooltip: { 
+                                enabled: true,
+                                titleFont: { size: 13 },
+                                bodyFont: { size: 13 }
+                            } 
+                        } 
+                    }
                 });
                 chartInstances.push(newChart);
             }, 50);
