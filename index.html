@@ -389,16 +389,38 @@
     <div class="border-b-2 border-orange-500 pb-4 mb-4"><h1 class="text-xl font-bold uppercase text-orange-800">⚠️ Glosas Sospechosas</h1><p class="text-xs mt-2">Fecha: <span id="printGlosasDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
     <table class="w-full text-xs"><thead class="bg-orange-100"><tr><th class="p-2">Fecha</th><th class="p-2">SKU</th><th class="p-2">Producto</th><th class="p-2">Doc</th><th class="p-2">Cliente</th><th class="p-2">Cant</th><th class="p-2">Neto</th></tr></thead><tbody id="printGlosasTableBody"></tbody></table>
 </div>
-<div id="caidasReportView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
-    <div class="border-b-2 border-red-600 pb-4 mb-4"><h1 class="text-xl font-bold uppercase text-red-800">Reporte de Caídas de Ventas</h1><p class="text-xs mt-1" id="caidasReportSubtitle"></p><p class="text-xs mt-1">Emisión: <span id="caidasReportDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
-    <div class="grid grid-cols-4 gap-3 mb-4 text-xs">
-        <div class="border rounded p-2 text-center"><div class="font-black text-red-600 text-lg" id="rptKpiCritica">0</div><div>Críticas</div></div>
-        <div class="border rounded p-2 text-center"><div class="font-black text-orange-600 text-lg" id="rptKpiAlta">0</div><div>Altas</div></div>
-        <div class="border rounded p-2 text-center"><div class="font-black text-yellow-600 text-lg" id="rptKpiMedia">0</div><div>Medias</div></div>
-        <div class="border rounded p-2 text-center"><div class="font-black text-green-600 text-lg" id="rptKpiLeve">0</div><div>Leves</div></div>
+<div id="caidasReportView" class="hidden-section bg-white mx-auto" style="max-width:28cm;padding:1cm;">
+    <!-- CABECERA -->
+    <div style="border-bottom:3px solid #dc2626;padding-bottom:8px;margin-bottom:10px;">
+        <h1 style="font-size:16pt;font-weight:900;color:#991b1b;margin:0;text-transform:uppercase;">Reporte de Caídas de Ventas</h1>
+        <p style="font-size:8pt;color:#555;margin:2px 0 0;" id="caidasReportSubtitle"></p>
+        <p style="font-size:8pt;color:#555;margin:1px 0 0;">Emisión: <span id="caidasReportDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p>
     </div>
-    <table class="w-full text-xs"><thead class="bg-gray-100"><tr><th class="p-2 text-left">Producto</th><th class="p-2 text-left">SKU</th><th class="p-2 text-right">Base und/mes</th><th class="p-2 text-right">Comp und/mes</th><th class="p-2 text-right">Δ und</th><th class="p-2 text-right">Δ %</th><th class="p-2 text-right">Δ Neto</th><th class="p-2 text-center">Sev.</th></tr></thead><tbody id="caidasReportTableBody"></tbody></table>
-    <div class="no-print mt-4 flex gap-2 justify-end"><button onclick="closeCaidasReport()" class="bg-gray-200 px-3 py-1 rounded text-xs">Volver</button><button onclick="window.print()" class="bg-red-600 text-white px-3 py-1 rounded text-xs">Imprimir</button></div>
+    <!-- KPIs fila -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+        <div style="border:1px solid #fca5a5;border-radius:6px;padding:6px;text-align:center;background:#fef2f2;">
+            <div style="font-size:18pt;font-weight:900;color:#dc2626;" id="rptKpiCritica">0</div>
+            <div style="font-size:7pt;color:#666;">Críticas ≥75%</div>
+        </div>
+        <div style="border:1px solid #fdba74;border-radius:6px;padding:6px;text-align:center;background:#fff7ed;">
+            <div style="font-size:18pt;font-weight:900;color:#ea580c;" id="rptKpiAlta">0</div>
+            <div style="font-size:7pt;color:#666;">Altas 50–74%</div>
+        </div>
+        <div style="border:1px solid #fde047;border-radius:6px;padding:6px;text-align:center;background:#fefce8;">
+            <div style="font-size:18pt;font-weight:900;color:#ca8a04;" id="rptKpiMedia">0</div>
+            <div style="font-size:7pt;color:#666;">Medias 25–49%</div>
+        </div>
+        <div style="border:1px solid #86efac;border-radius:6px;padding:6px;text-align:center;background:#f0fdf4;">
+            <div style="font-size:18pt;font-weight:900;color:#16a34a;" id="rptKpiLeve">0</div>
+            <div style="font-size:7pt;color:#666;">Leves &lt;25%</div>
+        </div>
+    </div>
+    <!-- CONTENIDO agrupado por categoría, 2 columnas -->
+    <div id="caidasReportBody"></div>
+    <div class="no-print" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="closeCaidasReport()" style="background:#e5e7eb;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;">Volver</button>
+        <button onclick="window.print()" style="background:#dc2626;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;">Imprimir</button>
+    </div>
 </div>
 <div id="masterReportView" class="hidden-section bg-white mx-auto p-6">
     <div class="border-b-2 border-blue-700 pb-3 mb-4"><h1 class="text-xl font-bold uppercase text-blue-800">Vista Maestra de Ventas</h1><p class="text-xs mt-1">Emisión: <span id="masterReportDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
@@ -461,10 +483,12 @@ function processData(data){
         const tipoDoc=row['Tipo de Documento']||'';
         const numDoc=row['Numero Documento']||'';
         const cliente=row['Nombre Cliente']||'';
+        const categoria=(row['Tipo de Producto / Servicio']||'Sin Categoría').trim()||'Sin Categoría';
         const up=qty!==0?net/qty:0;
         if(isGlosa(sku,name)) suspiciousGlosas.push({fecha:ds,sku,producto:name,tipoDoc,numDoc,cliente,cantidad:qty,neto:net});
         if(qty!==0||net!==0){
-            if(!productsMap[sku]){productsMap[sku]={sku,name,totalQty:0,totalNet:0,monthlyNet:{},monthlyQty:{},monthlyPrices:{},docCount:0,priceHistory:[]};productDocuments[sku]=[];}
+            if(!productsMap[sku]){productsMap[sku]={sku,name,categoria,totalQty:0,totalNet:0,monthlyNet:{},monthlyQty:{},monthlyPrices:{},docCount:0,priceHistory:[]};productDocuments[sku]=[];}
+            if(!productsMap[sku].categoria||productsMap[sku].categoria==='Sin Categoría') productsMap[sku].categoria=categoria;
             const p=productsMap[sku];
             p.totalQty+=qty; p.totalNet+=net; p.docCount++;
             if(qty!==0) p.priceHistory.push({fecha:ds,precio:up,cantidad:qty,neto:net});
@@ -851,7 +875,7 @@ function runCaidasAnalysis(){
         const ev=allMs.map(m=>({month:m,qty:p.monthlyQty[m]||0,isBase:bMs.includes(m),isComp:cMs.includes(m)}));
         const abs=Math.abs(dPct);
         const sev=abs>=75?'critica':abs>=50?'alta':abs>=25?'media':'leve';
-        caidasData.push({sku:p.sku,name:p.name,baseUnits:bU,compUnits:cU,baseAvg:bAvg,compAvg:cAvg,deltaUnits:dU,deltaPct:dPct,deltaNet:dNet,baseNet:bNet,compNet:cNet,evolution:ev,severity:sev,allMs});
+        caidasData.push({sku:p.sku,name:p.name,categoria:p.categoria||'Sin Categoría',baseUnits:bU,compUnits:cU,baseAvg:bAvg,compAvg:cAvg,deltaUnits:dU,deltaPct:dPct,deltaNet:dNet,baseNet:bNet,compNet:cNet,evolution:ev,severity:sev,allMs});
     });
     renderCaidasTable(); updateKpis();
     document.getElementById('caidasKpis').classList.remove('hidden-section');
@@ -918,16 +942,168 @@ function toggleChip(n){
 function exportCaidasReport(){
     const mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const fmt=m=>{const[y,mo]=m.split('-');return`${mn[parseInt(mo)-1]} ${y}`;};
-    document.getElementById('caidasReportSubtitle').innerText=`Base: ${fmt(document.getElementById('baseFrom').value)}→${fmt(document.getElementById('baseTo').value)} vs Comp: ${fmt(document.getElementById('compFrom').value)}→${fmt(document.getElementById('compTo').value)}`;
-    document.getElementById('caidasReportDate').innerText=new Date().toLocaleDateString();
-    const tbody=document.getElementById('caidasReportTableBody'); tbody.innerHTML='';
-    const sc={critica:'#dc2626',alta:'#ea580c',media:'#ca8a04',leve:'#16a34a'};
+    document.getElementById('caidasReportSubtitle').innerText=`Base: ${fmt(document.getElementById('baseFrom').value)} → ${fmt(document.getElementById('baseTo').value)}  |  Comparación: ${fmt(document.getElementById('compFrom').value)} → ${fmt(document.getElementById('compTo').value)}`;
+    document.getElementById('caidasReportDate').innerText=new Date().toLocaleDateString('es-CL');
+
+    const SC={
+        critica:{bg:'#fef2f2',border:'#fca5a5',txt:'#991b1b',bar:'#dc2626',label:'Crítica'},
+        alta:   {bg:'#fff7ed',border:'#fdba74',txt:'#9a3412',bar:'#ea580c',label:'Alta'},
+        media:  {bg:'#fefce8',border:'#fde047',txt:'#854d0e',bar:'#ca8a04',label:'Media'},
+        leve:   {bg:'#f0fdf4',border:'#86efac',txt:'#166534',bar:'#16a34a',label:'Leve'}
+    };
+
     const st=(document.getElementById('caidasSearch').value||'').toLowerCase();
-    caidasData.filter(d=>activeChips.has(d.severity)&&(!st||d.name.toLowerCase().includes(st)||d.sku.toLowerCase().includes(st))).sort((a,b)=>a.deltaPct-b.deltaPct).forEach(d=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`<td class="p-2 border-b">${d.name}</td><td class="p-2 border-b font-mono text-xs">${d.sku}</td><td class="p-2 border-b text-right">${d.baseAvg.toFixed(1)}</td><td class="p-2 border-b text-right">${d.compAvg.toFixed(1)}</td><td class="p-2 border-b text-right font-bold">${d.deltaUnits.toFixed(1)}</td><td class="p-2 border-b text-right font-black" style="color:${sc[d.severity]}">${d.deltaPct.toFixed(1)}%</td><td class="p-2 border-b text-right">${mf.format(d.deltaNet)}</td><td class="p-2 border-b text-center" style="color:${sc[d.severity]};font-weight:bold">${d.severity.charAt(0).toUpperCase()+d.severity.slice(1)}</td>`;
-        tbody.appendChild(tr);
+    const fl=caidasData.filter(d=>
+        activeChips.has(d.severity)&&
+        (!st||d.name.toLowerCase().includes(st)||d.sku.toLowerCase().includes(st))
+    );
+    if(fl.length===0) return;
+
+    // ── UMBRAL DE VOLUMEN ─────────────────────────────────────────────────────
+    // Se calcula dinámicamente: mediana del baseAvg de todos los productos filtrados.
+    // Productos con baseAvg >= mediana → "Alto Volumen" (prioridad)
+    // Productos con baseAvg <  mediana → "Bajo Volumen" (monitorear)
+    // Así si tus productos van de 1 a 1800 und/mes, la línea cae en un punto real,
+    // no en un percentil arbitrario que cambia con cada categoría.
+    const sortedBase=[...fl].map(d=>d.baseAvg).sort((a,b)=>a-b);
+    const mediana=sortedBase[Math.floor(sortedBase.length/2)];
+    // Mínimo absoluto: siempre consideramos "alto volumen" a quien vendía más de 5 und/mes
+    const UMBRAL_VOLUMEN=Math.max(mediana, 5);
+
+    // Score de impacto real = unidades perdidas/mes × (% caída / 100)
+    // Ej: 100→10 = 90 und × 0.9 = 81 | 2→0 = 2 und × 1.0 = 2
+    // Ambos tienen 100% de caída pero el primero pesa 40x más
+    const scoreImpacto=d=>Math.abs(d.deltaUnits)*Math.abs(d.deltaPct/100);
+
+    // Agrupar por categoría
+    const bycat={};
+    fl.forEach(d=>{
+        const cat=d.categoria||'Sin Categoría';
+        if(!bycat[cat]) bycat[cat]=[];
+        bycat[cat].push(d);
     });
+
+    // Ordenar categorías por impacto total (Σ score de todos sus productos)
+    const catOrder=Object.keys(bycat).sort((a,b)=>{
+        const ia=bycat[a].reduce((s,d)=>s+scoreImpacto(d),0);
+        const ib=bycat[b].reduce((s,d)=>s+scoreImpacto(d),0);
+        return ib-ia;
+    });
+
+    // Dentro de cada categoría, separar y ordenar por impacto DESC
+    const globalMaxBase=Math.max(...fl.map(d=>d.baseAvg),1);
+
+    const body=document.getElementById('caidasReportBody');
+    body.innerHTML='';
+
+    // ── RENDER DE UNA TARJETA DE PRODUCTO ────────────────────────────────────
+    const makeCard=(d, globalMaxBase)=>{
+        const c=SC[d.severity]||SC.leve;
+        // Barra proporcional al volumen base global (max 56px)
+        const barTotalW=56;
+        const barBaseW=Math.max(2,Math.round((d.baseAvg/globalMaxBase)*barTotalW));
+        const barCompW=d.baseAvg>0?Math.max(0,Math.round((d.compAvg/d.baseAvg)*barBaseW)):0;
+
+        const cell=document.createElement('div');
+        cell.style.cssText=`background:${c.bg};border:1px solid ${c.border};border-left:3px solid ${c.bar};padding:4px 5px;display:flex;flex-direction:column;gap:2px;`;
+
+        // Línea 1: nombre (truncado) + % caída en grande
+        cell.innerHTML=`
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:6.8pt;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${d.name}">${d.name}</div>
+              <div style="font-size:5.8pt;color:#64748b;font-family:monospace;letter-spacing:-.2px;">${d.sku}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;line-height:1;">
+              <div style="font-size:12pt;font-weight:900;color:${c.txt};">${d.deltaPct.toFixed(0)}%</div>
+              <div style="font-size:5.5pt;color:#94a3b8;text-transform:uppercase;">${c.label}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="position:relative;height:6px;width:${barBaseW}px;background:#cbd5e1;border-radius:3px;flex-shrink:0;">
+              <div style="position:absolute;left:0;top:0;height:6px;width:${barCompW}px;background:${c.bar};border-radius:3px;"></div>
+            </div>
+            <div style="font-size:6pt;color:#475569;white-space:nowrap;">
+              <span style="font-weight:800;color:#1d4ed8;">${d.baseAvg%1===0?d.baseAvg.toFixed(0):d.baseAvg.toFixed(1)}</span>
+              <span style="color:#94a3b8;"> → </span>
+              <span style="font-weight:800;color:${c.txt};">${d.compAvg%1===0?d.compAvg.toFixed(0):d.compAvg.toFixed(1)}</span>
+              <span style="color:#94a3b8;"> und/mes &nbsp;·&nbsp; </span>
+              <span style="color:#64748b;">${mf.format(Math.round(d.deltaNet))}/mes</span>
+            </div>
+          </div>`;
+        return cell;
+    };
+
+    // ── RENDER DE UN SUBGRUPO (con o sin título) ──────────────────────────────
+    const renderSubgroup=(list, titulo, bgTitle, textTitle)=>{
+        if(!list||list.length===0) return;
+        if(titulo){
+            const sub=document.createElement('div');
+            sub.style.cssText=`background:${bgTitle};color:${textTitle};padding:2px 8px;font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;`;
+            sub.innerText=titulo;
+            catWrap.appendChild(sub);
+        }
+        const grid=document.createElement('div');
+        grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-bottom:3px;';
+        list.forEach(d=>grid.appendChild(makeCard(d,globalMaxBase)));
+        if(list.length%2!==0) grid.appendChild(document.createElement('div'));
+        catWrap.appendChild(grid);
+    };
+
+    // ── LOOP PRINCIPAL ────────────────────────────────────────────────────────
+    let catWrap; // referencia accesible dentro de renderSubgroup
+    catOrder.forEach(cat=>{
+        const items=bycat[cat];
+        // Separar por umbral absoluto y ordenar por score de impacto
+        const prioritarios=items.filter(d=>d.baseAvg>=UMBRAL_VOLUMEN).sort((a,b)=>scoreImpacto(b)-scoreImpacto(a));
+        const monitorear  =items.filter(d=>d.baseAvg< UMBRAL_VOLUMEN).sort((a,b)=>scoreImpacto(b)-scoreImpacto(a));
+
+        catWrap=document.createElement('div');
+        catWrap.style.cssText='margin-bottom:10px;';
+
+        // Cabecera de categoría con contadores de severidad
+        const sevCounts=Object.entries(SC).map(([sev,c])=>{
+            const n=items.filter(d=>d.severity===sev).length;
+            return n>0?`<span style="background:${c.bg};color:${c.txt};border:1px solid ${c.border};padding:1px 5px;border-radius:8px;font-size:6pt;font-weight:700;margin-left:3px;">${c.label} ${n}</span>`:'';
+        }).filter(Boolean).join('');
+
+        const catHead=document.createElement('div');
+        catHead.style.cssText='background:#0f172a;color:white;padding:5px 8px;font-size:8.5pt;font-weight:900;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;';
+        catHead.innerHTML=`<span>${cat} <span style="font-size:6.5pt;font-weight:300;opacity:.6;">${items.length} productos</span></span><span>${sevCounts}</span>`;
+        catWrap.appendChild(catHead);
+
+        if(prioritarios.length>0 && monitorear.length>0){
+            // Hay ambos grupos → mostrar separados con subtítulo
+            renderSubgroup(prioritarios,
+                `⚡ Prioridad — vendía ${prioritarios[0].baseAvg%1===0?prioritarios[0].baseAvg.toFixed(0):prioritarios[0].baseAvg.toFixed(1)}+ und/mes`,
+                '#7f1d1d','#fca5a5');
+            renderSubgroup(monitorear,
+                `◎ Monitorear — volumen menor de ${Math.ceil(UMBRAL_VOLUMEN)} und/mes`,
+                '#e2e8f0','#475569');
+        } else {
+            // Solo un grupo → sin subtítulo, más limpio
+            renderSubgroup(prioritarios.length>0?prioritarios:monitorear, null, null, null);
+        }
+
+        body.appendChild(catWrap);
+    });
+
+    // ── PRINT STYLES ──────────────────────────────────────────────────────────
+    if(!document.getElementById('printStylesCaidas')){
+        const s=document.createElement('style');
+        s.id='printStylesCaidas';
+        s.innerHTML=`
+            @media print {
+                @page { size: letter portrait; margin: 0.6cm; }
+                body > *:not(#caidasReportView) { display:none !important; }
+                #caidasReportView { display:block !important; max-width:100% !important; padding:0 !important; }
+                #caidasReportBody > div { page-break-inside:avoid; }
+                .no-print { display:none !important; }
+            }
+        `;
+        document.head.appendChild(s);
+    }
+
     ['tabsBar','panelCaidas'].forEach(id=>document.getElementById(id).classList.add('hidden-section'));
     document.getElementById('caidasReportView').classList.remove('hidden-section');
 }
