@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador Ventas v16</title>
+    <title>Analizador Ventas v16.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <!-- SheetJS para leer archivos Excel (.xlsx) nativos -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root { --blue:#2563eb; --red:#dc2626; --orange:#ea580c; --yellow:#ca8a04; --green:#16a34a; }
@@ -57,17 +59,18 @@
         .master-table tbody tr:hover { background:#f0f9ff !important; }
         .master-table td { font-size:11px;white-space:nowrap; }
 
-        /* Trend arrow */
-        .trend-up   { color:#16a34a; }
-        .trend-down { color:#dc2626; }
-        .trend-flat { color:#94a3b8; }
+        .cat-header { background-color: #1e293b !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .print-quiebre-row { page-break-inside: avoid; }
 
         @media print {
-            @page { size:letter landscape; margin:0.6cm; }
+            @page { size:letter portrait; margin:0.6cm; }
             body { background:white; }
             .no-print { display:none !important; }
-            #reportView:not(.hidden-section),#caidasReportView:not(.hidden-section),#masterReportView:not(.hidden-section) { display:block !important; }
-            table { width:100%;border-collapse:collapse;font-size:7pt; }
+            #reportView:not(.hidden-section),
+            #caidasReportView:not(.hidden-section),
+            #masterReportView:not(.hidden-section),
+            #quiebresReportView:not(.hidden-section) { display:block !important; }
+            table { width:100%;border-collapse:collapse; }
             th { background:#eee !important;border-bottom:1px solid #000;padding:3px; }
             td { border-bottom:1px solid #ddd;padding:2px; }
         }
@@ -79,13 +82,19 @@
 <div class="max-w-screen-2xl mx-auto mb-4 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
     <div>
         <h1 class="text-2xl font-black text-slate-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas <span class="text-blue-600">AROMAKER</span></h1>
-        <p class="text-xs text-slate-400 font-mono">v16.0 · Tabla Maestra + Detector de Caídas sin límites</p>
+        <p class="text-xs text-slate-400 font-mono">v16.6 · Módulo Compras (Alerta de Quiebres)</p>
     </div>
-    <div class="bg-white p-3 rounded-xl shadow border">
-        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cargar CSV Detalle de Ventas:</label>
-        <input type="file" id="uploadCsv" accept=".csv"
-            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
-        <p class="text-[10px] text-gray-400 mt-1">Bsale · Detalle de Ventas · separado por ; · Latin-1 o UTF-8</p>
+    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+        <div class="bg-white p-3 rounded-xl shadow border border-blue-100 flex-1">
+            <label class="block text-[10px] font-black text-blue-800 uppercase mb-1"><i class="fas fa-file-csv"></i> 1. Cargar Ventas CSV</label>
+            <input type="file" id="uploadCsv" accept=".csv"
+                class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+        </div>
+        <div class="bg-white p-3 rounded-xl shadow border border-emerald-100 flex-1">
+            <label class="block text-[10px] font-black text-emerald-800 uppercase mb-1"><i class="fas fa-file-excel"></i> 2. Cargar Stock Bsale (Opcional)</label>
+            <input type="file" id="uploadStock" accept=".xlsx, .xls, .csv"
+                class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"/>
+        </div>
     </div>
 </div>
 
@@ -99,7 +108,7 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- TAB: VENTAS                                                     -->
+<!-- TAB: VENTAS                                                    -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 <div id="panelVentas" class="max-w-screen-2xl mx-auto hidden-section no-print">
     <div id="glosasAlert" class="hidden-section card border-l-4 border-orange-500 bg-orange-50 mb-4">
@@ -112,6 +121,7 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
             <div><h3 class="font-bold text-blue-900"><i class="fas fa-check-double"></i> Selección: <span id="selectionCount" class="text-2xl font-black">0</span></h3></div>
             <div class="flex gap-2">
+                <button onclick="selectAllVisible()" class="bg-white border border-blue-300 text-blue-700 px-3 py-1 rounded text-xs font-bold">Sel. Visibles</button>
                 <button onclick="clearSelection()" class="bg-white border border-red-300 text-red-600 px-3 py-1 rounded text-xs font-bold">Limpiar</button>
                 <button onclick="generateReport()" class="bg-blue-600 text-white font-bold py-2 px-6 rounded shadow text-sm"><i class="fas fa-file-pdf"></i> Generar Informe</button>
             </div>
@@ -130,11 +140,15 @@
     </div>
     <div class="card">
         <div class="flex flex-col md:flex-row justify-between items-end mb-4 gap-3">
-            <div class="w-full">
-                <label class="font-bold text-gray-700 text-sm">Buscador:</label>
-                <input type="text" id="searchInput" placeholder="Buscar producto o SKU..." class="border p-2 rounded w-full mt-1 bg-gray-50 focus:bg-white outline-none">
+            <div class="flex-1">
+                <label class="font-bold text-gray-700 text-xs uppercase block mb-1">Buscador:</label>
+                <input type="text" id="searchInput" placeholder="Buscar producto o SKU..." class="border p-2 rounded text-sm w-full bg-gray-50 focus:bg-white outline-none">
             </div>
-            <div class="text-xs text-gray-500 whitespace-nowrap"><span id="resultCount" class="font-bold text-blue-600">0</span> productos</div>
+            <div class="w-64">
+                <label class="font-bold text-gray-700 text-xs uppercase block mb-1">Categoría:</label>
+                <select id="catFilterVentas" class="border p-2 rounded text-sm w-full bg-white outline-none" onchange="renderTable()"></select>
+            </div>
+            <div class="text-xs text-gray-500 whitespace-nowrap"><span id="resultCount" class="font-bold text-blue-600">0</span> productos listados</div>
         </div>
         <div class="overflow-x-auto border rounded h-[500px] overflow-y-auto bg-white">
             <table class="min-w-full table-auto text-sm">
@@ -143,6 +157,7 @@
                         <th class="p-2 text-center w-10">#</th>
                         <th class="p-2 text-left w-24">SKU</th>
                         <th class="p-2 text-left">Producto</th>
+                        <th class="p-2 text-left w-32">Categoría</th>
                         <th class="p-2 text-left w-48 text-xs uppercase text-gray-500">Clientes</th>
                         <th class="p-2 text-center w-16">Docs</th>
                         <th class="p-2 text-center w-20">Unds</th>
@@ -172,7 +187,11 @@
         </div>
 
         <!-- Controles filtro -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
+            <div>
+                <label class="text-xs font-bold text-gray-600 block mb-1">Categoría</label>
+                <select id="catFilterMaster" class="border rounded px-2 py-1.5 text-sm w-full bg-white outline-none"></select>
+            </div>
             <div>
                 <label class="text-xs font-bold text-gray-600 block mb-1">Buscar producto/SKU</label>
                 <input type="text" id="masterSearch" placeholder="Filtrar..." class="border rounded px-2 py-1.5 text-sm w-full outline-none bg-gray-50 focus:bg-white">
@@ -250,34 +269,49 @@
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 bg-slate-50 rounded-xl p-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 bg-slate-50 rounded-xl p-4">
+            <div>
+                <label class="text-xs font-bold text-gray-700 block mb-1">Categoría</label>
+                <select id="catFilterCaidas" class="border rounded px-2 py-1 text-sm w-full bg-white outline-none" onchange="renderCaidasTable()"></select>
+            </div>
             <div>
                 <label class="text-xs font-bold text-gray-700 block mb-1">Caída mínima % <span id="lblPct" class="text-blue-600">0%</span></label>
                 <input type="range" id="sliderPct" min="0" max="100" value="0" step="5" class="w-full" oninput="document.getElementById('lblPct').innerText=this.value+'%'">
-                <p class="text-[10px] text-gray-400 mt-1">0% = muestra TODAS las caídas</p>
             </div>
             <div>
                 <label class="text-xs font-bold text-gray-700 block mb-1">Caída mínima unidades <span id="lblUnits" class="text-blue-600">0</span></label>
                 <input type="range" id="sliderUnits" min="0" max="200" value="0" step="1" class="w-full" oninput="document.getElementById('lblUnits').innerText=this.value">
-                <p class="text-[10px] text-gray-400 mt-1">0 = muestra cualquier caída</p>
             </div>
             <div>
                 <label class="text-xs font-bold text-gray-700 block mb-1">Ventas mínimas en base <span id="lblMinBase" class="text-blue-600">1</span> und/mes</label>
                 <input type="range" id="sliderMinBase" min="1" max="500" value="1" step="1" class="w-full" oninput="document.getElementById('lblMinBase').innerText=this.value">
-                <p class="text-[10px] text-gray-400 mt-1">1 = incluye productos con 1 und/mes</p>
             </div>
         </div>
-        <div class="flex flex-wrap gap-2 items-center mb-4">
-            <span class="text-xs font-bold text-gray-600">Severidad visible:</span>
-            <span class="chip sv-critica on" id="chip-critica" onclick="toggleChip('critica')"><i class="fas fa-circle-exclamation"></i> Crítica ≥75%</span>
-            <span class="chip sv-alta on"    id="chip-alta"    onclick="toggleChip('alta')"><i class="fas fa-arrow-down"></i> Alta 50–74%</span>
-            <span class="chip sv-media on"   id="chip-media"   onclick="toggleChip('media')"><i class="fas fa-minus"></i> Media 25–49%</span>
-            <span class="chip sv-leve on"    id="chip-leve"    onclick="toggleChip('leve')"><i class="fas fa-arrow-up-right-from-square"></i> Leve &lt;25%</span>
+        <div class="flex flex-wrap gap-4 items-center mb-4 border-b pb-4">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-gray-600">Severidad visible:</span>
+                <span class="chip sv-critica on" id="chip-critica" onclick="toggleChip('critica')"><i class="fas fa-circle-exclamation"></i> Crítica ≥75%</span>
+                <span class="chip sv-alta on"    id="chip-alta"    onclick="toggleChip('alta')"><i class="fas fa-arrow-down"></i> Alta 50–74%</span>
+                <span class="chip sv-media on"   id="chip-media"   onclick="toggleChip('media')"><i class="fas fa-minus"></i> Media 25–49%</span>
+                <span class="chip sv-leve on"    id="chip-leve"    onclick="toggleChip('leve')"><i class="fas fa-arrow-up-right-from-square"></i> Leve &lt;25%</span>
+            </div>
+            
+            <div class="h-6 w-px bg-gray-300 hidden md:block" id="stockDivisor" style="display:none;"></div>
+            
+            <div class="flex items-center gap-2" id="stockoutFilterContainer" style="display:none;">
+                <label class="text-xs font-bold text-gray-700">Estado Inventario:</label>
+                <select id="stockFilter" onchange="renderCaidasTable()" class="border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold rounded px-2 py-1 text-xs outline-none cursor-pointer">
+                    <option value="all">Ver Todos</option>
+                    <option value="instock">Solo CON stock (>0)</option>
+                    <option value="outstock">Solo SIN stock (0)</option>
+                </select>
+            </div>
         </div>
         <div class="flex gap-3 flex-wrap items-center">
             <button onclick="runCaidasAnalysis()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded-lg shadow text-sm"><i class="fas fa-magnifying-glass-chart"></i> Analizar Caídas</button>
             <input type="text" id="caidasSearch" placeholder="Filtrar por nombre/SKU..." class="border rounded px-3 py-1.5 text-sm outline-none w-48 bg-gray-50">
-            <button onclick="exportCaidasReport()" class="bg-slate-700 text-white font-bold py-2 px-4 rounded-lg text-sm hidden-section" id="btnExportCaidas"><i class="fas fa-print"></i> Imprimir</button>
+            <button onclick="exportCaidasReport()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg text-sm hidden-section" id="btnExportCaidas"><i class="fas fa-print"></i> Imprimir Caídas</button>
+            <button onclick="exportQuiebresReport()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm shadow hidden-section" id="btnAlertaCompras"><i class="fas fa-exclamation-triangle"></i> Generar Alerta Compras</button>
         </div>
     </div>
 
@@ -324,7 +358,7 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- MODALES                                                         -->
+<!-- MODALES                                                        -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 <div id="detailModal" class="modal hidden-section">
     <div class="modal-content">
@@ -341,6 +375,7 @@
                 <div class="bg-green-50 px-3 py-2 rounded text-xs"><span class="text-gray-600">Unidades:</span> <strong id="detailTotalUnits"></strong></div>
                 <div class="bg-purple-50 px-3 py-2 rounded text-xs"><span class="text-gray-600">Neto:</span> <strong id="detailTotalNet"></strong></div>
                 <div class="bg-yellow-50 px-3 py-2 rounded text-xs"><span class="text-gray-600">P.Prom:</span> <strong id="detailAvgPrice"></strong></div>
+                <div class="bg-slate-50 px-3 py-2 rounded text-xs border border-slate-200"><span class="text-gray-600">Stock Bsale:</span> <strong id="detailStock">N/A</strong></div>
             </div>
             <div class="overflow-x-auto border rounded max-h-[50vh] overflow-y-auto">
                 <table class="min-w-full text-xs">
@@ -364,7 +399,7 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ -->
-<!-- VISTAS PRINT                                                    -->
+<!-- VISTAS PRINT                                                   -->
 <!-- ══════════════════════════════════════════════════════════════ -->
 <div id="reportView" class="hidden-section bg-white max-w-[21cm] mx-auto mt-8 p-8 shadow-lg">
     <div class="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
@@ -380,15 +415,18 @@
     <table class="w-full text-sm mb-6"><thead><tr class="bg-gray-100 text-xs uppercase"><th class="py-2 px-2 text-left w-2/5">Producto</th><th class="py-2 px-2 text-left w-2/5">Meses</th><th class="py-2 px-2 text-right w-1/5">Totales</th></tr></thead><tbody id="reportTableBody" class="divide-y"></tbody></table>
     <div id="pricesContainer"></div><div id="chartsContainer"></div>
 </div>
+
 <div id="detailPrintView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
     <div class="border-b-2 border-black pb-4 mb-4"><h1 class="text-xl font-bold uppercase">Detalle de Ventas</h1><p class="text-sm" id="printDetailTitle"></p><p class="text-xs text-gray-500" id="printDetailSku"></p><p class="text-xs mt-2">Fecha: <span id="printDetailDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
     <table class="w-full text-xs mb-4"><thead class="bg-gray-100"><tr><th class="p-2">Fecha</th><th class="p-2">Tipo</th><th class="p-2">N° Doc</th><th class="p-2">Cliente</th><th class="p-2 text-center">Cant</th><th class="p-2 text-right">P.Unit</th><th class="p-2 text-right">Neto</th></tr></thead><tbody id="printDetailTableBody"></tbody></table>
     <div class="border-t pt-2 text-right text-sm"><strong>Docs:</strong> <span id="printTotalDocs"></span> | <strong>Unds:</strong> <span id="printTotalUnits"></span> | <strong>Neto:</strong> <span id="printTotalNet"></span> | <strong>P.Prom:</strong> <span id="printAvgPrice"></span></div>
 </div>
+
 <div id="glosasReportView" class="hidden-section bg-white max-w-[21cm] mx-auto p-8">
     <div class="border-b-2 border-orange-500 pb-4 mb-4"><h1 class="text-xl font-bold uppercase text-orange-800">⚠️ Glosas Sospechosas</h1><p class="text-xs mt-2">Fecha: <span id="printGlosasDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
     <table class="w-full text-xs"><thead class="bg-orange-100"><tr><th class="p-2">Fecha</th><th class="p-2">SKU</th><th class="p-2">Producto</th><th class="p-2">Doc</th><th class="p-2">Cliente</th><th class="p-2">Cant</th><th class="p-2">Neto</th></tr></thead><tbody id="printGlosasTableBody"></tbody></table>
 </div>
+
 <div id="caidasReportView" class="hidden-section bg-white mx-auto" style="max-width:28cm;padding:1cm;">
     <!-- CABECERA -->
     <div style="border-bottom:3px solid #dc2626;padding-bottom:8px;margin-bottom:10px;">
@@ -396,7 +434,6 @@
         <p style="font-size:8pt;color:#555;margin:2px 0 0;" id="caidasReportSubtitle"></p>
         <p style="font-size:8pt;color:#555;margin:1px 0 0;">Emisión: <span id="caidasReportDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p>
     </div>
-    <!-- KPIs fila -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
         <div style="border:1px solid #fca5a5;border-radius:6px;padding:6px;text-align:center;background:#fef2f2;">
             <div style="font-size:18pt;font-weight:900;color:#dc2626;" id="rptKpiCritica">0</div>
@@ -415,13 +452,29 @@
             <div style="font-size:7pt;color:#666;">Leves &lt;25%</div>
         </div>
     </div>
-    <!-- CONTENIDO agrupado por categoría, 2 columnas -->
     <div id="caidasReportBody"></div>
     <div class="no-print" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
         <button onclick="closeCaidasReport()" style="background:#e5e7eb;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;">Volver</button>
         <button onclick="window.print()" style="background:#dc2626;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;">Imprimir</button>
     </div>
 </div>
+
+<!-- NUEVO REPORTE: ALERTA COMPRAS -->
+<div id="quiebresReportView" class="hidden-section bg-white mx-auto" style="max-width:21cm;padding:1cm;">
+    <div style="border-bottom:4px solid #b91c1c;padding-bottom:12px;margin-bottom:16px;">
+        <h1 style="font-size:18pt;font-weight:900;color:#991b1b;margin:0;text-transform:uppercase;"><i class="fas fa-exclamation-triangle"></i> Alerta de Reposición</h1>
+        <p style="font-size:9pt;color:#555;margin:4px 0 0;font-weight:600;">Productos con caída de ventas asociados a QUIEBRE DE STOCK (Inventario = 0).</p>
+        <p style="font-size:8pt;color:#555;margin:2px 0 0;">Emisión: <span id="quiebresReportDate"></span> | Generado por: <strong>LEONARDO CASTRO</strong></p>
+    </div>
+    
+    <div id="quiebresReportBody"></div>
+    
+    <div class="no-print" style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="closeQuiebresReport()" style="background:#e5e7eb;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;">Volver</button>
+        <button onclick="window.print()" style="background:#b91c1c;color:white;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;"><i class="fas fa-print"></i> Imprimir Alerta</button>
+    </div>
+</div>
+
 <div id="masterReportView" class="hidden-section bg-white mx-auto p-6">
     <div class="border-b-2 border-blue-700 pb-3 mb-4"><h1 class="text-xl font-bold uppercase text-blue-800">Vista Maestra de Ventas</h1><p class="text-xs mt-1">Emisión: <span id="masterReportDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
     <div id="masterReportContent"></div>
@@ -439,54 +492,176 @@ let selectedSKUs = new Set(), caidasData = [];
 let activeChips    = new Set(['critica','alta','media','leve']);
 let activeMChips   = new Set(['caida-fuerte','caida-media','sube','estable']);
 let visibleMasterMonths = new Set();
+let currentStock = null; // Guardará { "SKU": stockNum }
 
 const mf = new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0});
 const GLOSA_KW = ['envio','envío','despacho','flete','transporte','shipping','costo de envio','dispatch','traslado','courier','starken','chilexpress','correos','bluexpress','turbus'];
 
 // ════════════════════════════════════════════════════════════════
-// CARGA CSV
+// CARGA CSV VENTAS
 // ════════════════════════════════════════════════════════════════
 document.getElementById('uploadCsv').addEventListener('change', function(e){
     const file = e.target.files[0]; if(!file) return;
-    Papa.parse(file,{header:true,skipEmptyLines:true,encoding:"UTF-8",delimiter:";",
-        complete:function(r){ if(!r.data[0]?.['Fecha Venta']) reloadLatin1(file); else processData(r.data); }});
+
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: function(h) { return h.trim().replace(/^\uFEFF/, ''); },
+        complete: function(r) {
+            const data = r.data;
+            if(!data || data.length === 0) { alert("El archivo está vacío o no se pudo leer correctamente."); return; }
+
+            const firstRow = data[0];
+            const hasDate = firstRow['Fecha Venta'] || firstRow['Fecha'] || getVal(firstRow, ['fecha venta', 'fecha', 'fecha de emision', 'fecha de emisión']);
+
+            if (!hasDate) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    Papa.parse(evt.target.result, {
+                        header: true,
+                        skipEmptyLines: true,
+                        delimiter: ";",
+                        transformHeader: function(h) { return h.trim().replace(/^\uFEFF/, ''); },
+                        complete: function(res2) { processData(res2.data); }
+                    });
+                };
+                reader.readAsText(file, 'ISO-8859-1');
+            } else {
+                processData(data);
+            }
+        }
+    });
 });
-function reloadLatin1(file){
-    const rd = new FileReader();
-    rd.onload = e => { const r = Papa.parse(e.target.result,{header:true,skipEmptyLines:true,delimiter:";"}); processData(r.data); };
-    rd.readAsText(file,'ISO-8859-1');
-}
+
+// ════════════════════════════════════════════════════════════════
+// CARGA XLSX/CSV DE STOCK (OPCIONAL)
+// ════════════════════════════════════════════════════════════════
+document.getElementById('uploadStock').addEventListener('change', function(e) {
+    const file = e.target.files[0]; if(!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+        
+        let headerRowIdx = -1;
+        let skuCol = -1;
+        let stockCol = -1;
+        
+        for(let i = 0; i < Math.min(20, rows.length); i++) {
+            let row = rows[i] || [];
+            let cSku = row.findIndex(c => typeof c === 'string' && c.trim().toUpperCase() === 'SKU');
+            let cStock = row.findIndex(c => typeof c === 'string' && (c.trim().toUpperCase() === 'STOCK' || c.trim().toUpperCase() === 'CANTIDAD DISPONIBLE'));
+            
+            if(cSku !== -1 && cStock !== -1) {
+                headerRowIdx = i;
+                skuCol = cSku;
+                stockCol = cStock;
+                break;
+            }
+        }
+        
+        if(headerRowIdx === -1) { 
+            alert("No se pudo detectar las columnas 'SKU' y 'Stock' en el archivo. Revisa el formato."); 
+            return; 
+        }
+
+        currentStock = {};
+        for(let i = headerRowIdx + 1; i < rows.length; i++) {
+            let row = rows[i] || [];
+            let sku = row[skuCol];
+            let stock = row[stockCol];
+            if(sku && typeof stock !== 'undefined') {
+                currentStock[String(sku).trim()] = cleanNum(stock);
+            }
+        }
+        
+        document.getElementById('stockoutFilterContainer').style.display = 'flex';
+        document.getElementById('stockDivisor').style.display = 'block';
+        document.getElementById('btnAlertaCompras').classList.remove('hidden-section');
+        alert(`Se cargó el stock correctamente de ${Object.keys(currentStock).length} SKUs.`);
+        
+        if(caidasData.length > 0) runCaidasAnalysis();
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+
 function cleanNum(v){
-    if(!v) return 0;
+    if(v === undefined || v === null || v === '') return 0;
     const n = parseFloat(String(v).trim().replace(/\./g,'').replace(',','.'));
     return isNaN(n)?0:n;
 }
+
+function getVal(row, possibleKeys) {
+    const keys = Object.keys(row);
+    for(let pk of possibleKeys) {
+        const found = keys.find(k => k.trim().toLowerCase() === pk);
+        if (found && row[found] !== undefined && row[found] !== '') return row[found];
+    }
+    return null;
+}
+
 function isGlosa(sku,name){
     const sl=(sku||'').toLowerCase(), nl=(name||'').toLowerCase();
     if(!/^\d{10,}$/.test(sku)&&!sl.includes('glosa')) return false;
     return !GLOSA_KW.some(k=>nl.includes(k));
 }
 
+function populateCategoryFilters() {
+    const cats = [...new Set(Object.values(productsMap).map(p=>p.categoria))].filter(c => c && c !== 'Sin Categoría').sort();
+    let html = '<option value="">Todas las Categorías</option>';
+    cats.forEach(c => html += `<option value="${c}">${c}</option>`);
+    html += `<option value="Sin Categoría">Sin Categoría</option>`;
+    
+    document.getElementById('catFilterVentas').innerHTML = html;
+    document.getElementById('catFilterMaster').innerHTML = html;
+    document.getElementById('catFilterCaidas').innerHTML = html;
+}
+
 function processData(data){
     productsMap={}; productDocuments={}; suspiciousGlosas=[]; selectedSKUs.clear(); updateSelCounter();
+    let validRows = 0;
+
     data.forEach(row=>{
-        const ds=row['Fecha Venta']||row['Fecha']; if(!ds||ds.length<8) return;
-        const dp=ds.split('/'); if(dp.length!==3) return;
-        const mo=parseInt(dp[1]),yr=parseInt(dp[2]);
+        let ds = row['Fecha Venta'] || row['Fecha'] || getVal(row, ['fecha venta', 'fecha', 'fecha de emision', 'fecha de emisión']);
+        if(!ds || ds.length<8) return;
+
+        let dp = ds.includes('/') ? ds.split('/') : ds.split('-');
+        if(dp.length!==3) return;
+
+        let mo, yr;
+        if(dp[0].length === 4) { yr = parseInt(dp[0]); mo = parseInt(dp[1]); }
+        else { mo = parseInt(dp[1]); yr = parseInt(dp[2]); }
+
         if(isNaN(yr)||yr<2000||yr>2100||isNaN(mo)||mo<1||mo>12) return;
         const mk=`${yr}-${String(mo).padStart(2,'0')}`;
-        const qty=cleanNum(row['Cantidad']);
-        let net=cleanNum(row['Venta Total Neta'])||cleanNum(row['Venta Total']);
-        if(net===0&&cleanNum(row['Venta Total Bruta'])!==0) net=cleanNum(row['Venta Total Bruta'])/1.19;
-        const sku=row['SKU']||'SIN-SKU';
-        const name=row['Producto / Servicio + Variante']||'Desconocido';
-        const tipoDoc=row['Tipo de Documento']||'';
-        const numDoc=row['Numero Documento']||'';
-        const cliente=row['Nombre Cliente']||'';
-        const categoria=(row['Tipo de Producto / Servicio']||'Sin Categoría').trim()||'Sin Categoría';
+
+        const qtyStr = row['Cantidad'] !== undefined ? row['Cantidad'] : getVal(row, ['cantidad']);
+        const netStr = row['Venta Total Neta'] !== undefined ? row['Venta Total Neta'] : (row['Venta Total'] !== undefined ? row['Venta Total'] : getVal(row, ['venta total neta', 'venta total', 'neto']));
+        const brutStr = row['Venta Total Bruta'] !== undefined ? row['Venta Total Bruta'] : getVal(row, ['venta total bruta', 'bruto']);
+
+        const qty=cleanNum(qtyStr);
+        let net=cleanNum(netStr);
+        if(net===0 && cleanNum(brutStr)!==0) net=cleanNum(brutStr)/1.19;
+
+        const sku = row['SKU'] !== undefined ? row['SKU'] : (getVal(row, ['sku', 'código', 'codigo']) || 'SIN-SKU');
+        const name = row['Producto / Servicio + Variante'] !== undefined ? row['Producto / Servicio + Variante'] : (getVal(row, ['producto / servicio + variante', 'producto', 'nombre']) || 'Desconocido');
+        const tipoDoc = row['Tipo de Documento'] !== undefined ? row['Tipo de Documento'] : (getVal(row, ['tipo de documento', 'documento']) || '');
+        const numDoc = row['Numero Documento'] !== undefined ? row['Numero Documento'] : (getVal(row, ['numero documento', 'folio', 'nro doc']) || '');
+        const cliente = row['Nombre Cliente'] !== undefined ? row['Nombre Cliente'] : (getVal(row, ['nombre cliente', 'cliente']) || '');
+        const catRaw = row['Tipo de Producto / Servicio'] !== undefined ? row['Tipo de Producto / Servicio'] : getVal(row, ['tipo de producto / servicio', 'categoría', 'categoria']);
+        const categoria = (catRaw || 'Sin Categoría').trim() || 'Sin Categoría';
+
         const up=qty!==0?net/qty:0;
         if(isGlosa(sku,name)) suspiciousGlosas.push({fecha:ds,sku,producto:name,tipoDoc,numDoc,cliente,cantidad:qty,neto:net});
+        
         if(qty!==0||net!==0){
+            validRows++;
             if(!productsMap[sku]){productsMap[sku]={sku,name,categoria,totalQty:0,totalNet:0,monthlyNet:{},monthlyQty:{},monthlyPrices:{},docCount:0,priceHistory:[]};productDocuments[sku]=[];}
             if(!productsMap[sku].categoria||productsMap[sku].categoria==='Sin Categoría') productsMap[sku].categoria=categoria;
             const p=productsMap[sku];
@@ -498,10 +673,19 @@ function processData(data){
             productDocuments[sku].push({fecha:ds,tipoDoc,numDoc,cliente,cantidad:qty,neto:net,precioUnit:up});
         }
     });
+
+    if (validRows === 0) {
+        alert("El archivo se leyó, pero no se encontró ninguna fila con datos de ventas válidos.");
+        return;
+    }
+
     availableMonths=[...new Set(Object.values(productsMap).flatMap(p=>Object.keys(p.monthlyNet)))].sort();
     visibleMasterMonths = new Set(availableMonths);
-    renderTable(''); renderMonthSelectors(); populateCaidasSelectors(); updateGlosasAlert();
+    
+    populateCategoryFilters();
+    renderTable(); renderMonthSelectors(); populateCaidasSelectors(); updateGlosasAlert();
     buildMasterMonthToggle(); renderMasterTable();
+    
     document.getElementById('tabsBar').classList.remove('hidden-section');
     document.getElementById('panelVentas').classList.remove('hidden-section');
     switchTab('ventas');
@@ -531,16 +715,32 @@ function avgPrice(p){ return p.totalQty===0?0:p.totalNet/p.totalQty; }
 function monthAvgPrice(p,mk){ const ps=p.monthlyPrices[mk]; if(!ps||!ps.length) return 0; return ps.reduce((a,b)=>a+b,0)/ps.length; }
 function updateGlosasAlert(){ const a=document.getElementById('glosasAlert'); if(suspiciousGlosas.length>0){a.classList.remove('hidden-section');document.getElementById('glosasCount').innerText=suspiciousGlosas.length;}else a.classList.add('hidden-section'); }
 function updateSelCounter(){ document.getElementById('selectionCount').innerText=selectedSKUs.size; }
-function clearSelection(){ selectedSKUs.clear(); updateSelCounter(); renderTable(document.getElementById('searchInput').value); }
-document.getElementById('searchInput').addEventListener('keyup',function(e){ clearTimeout(searchTimeout); searchTimeout=setTimeout(()=>renderTable(e.target.value),300); });
+function clearSelection(){ selectedSKUs.clear(); updateSelCounter(); renderTable(); }
 
-function renderTable(filter=''){
+function selectAllVisible() {
+    const checkboxes = document.querySelectorAll('#productsTable input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        if (!cb.checked) { cb.click(); }
+    });
+}
+
+document.getElementById('searchInput').addEventListener('keyup',function(e){ clearTimeout(searchTimeout); searchTimeout=setTimeout(()=>renderTable(),300); });
+
+function renderTable(){
     const tbody=document.getElementById('productsTable'); tbody.innerHTML='';
-    const term=filter.toLowerCase();
-    let filtered=Object.values(productsMap).filter(p=>!term||p.sku.toLowerCase().includes(term)||p.name.toLowerCase().includes(term));
+    const term=(document.getElementById('searchInput').value||'').toLowerCase();
+    const cat=document.getElementById('catFilterVentas').value;
+    
+    let filtered=Object.values(productsMap).filter(p=>{
+        if(cat && p.categoria !== cat) return false;
+        if(term && !p.sku.toLowerCase().includes(term) && !p.name.toLowerCase().includes(term)) return false;
+        return true;
+    });
+    
     filtered.sort((a,b)=>b.totalNet-a.totalNet);
     document.getElementById('resultCount').innerText=filtered.length;
-    filtered.slice(0,100).forEach(p=>{
+    
+    filtered.slice(0, 150).forEach(p=>{
         const tr=document.createElement('tr');
         const chk=selectedSKUs.has(p.sku);
         tr.className=chk?"bg-blue-50 hover:bg-blue-100":"hover:bg-gray-50";
@@ -551,6 +751,7 @@ function renderTable(filter=''){
         tr.innerHTML=`<td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 cursor-pointer" onchange="toggleSel('${p.sku}',this)" onclick="event.stopPropagation()" ${chk?'checked':''}></td>
             <td class="p-2 font-mono text-xs font-bold text-gray-600">${p.sku}</td>
             <td class="p-2 text-xs text-gray-800 cursor-pointer hover:text-blue-600" onclick="showDetail('${p.sku}')">${p.name}</td>
+            <td class="p-2 text-xs text-gray-500 truncate max-w-[120px]" title="${p.categoria}">${p.categoria}</td>
             <td class="p-2 text-xs text-gray-600 truncate max-w-[180px]">${cd}</td>
             <td class="p-2 text-center"><span class="bg-gray-200 px-2 py-1 rounded text-xs font-bold cursor-pointer hover:bg-blue-200" onclick="showDetail('${p.sku}')">${p.docCount}</span></td>
             <td class="p-2 text-center text-xs font-bold">${p.totalQty}</td>
@@ -570,12 +771,24 @@ function showDetail(sku){
     document.getElementById('detailTotalUnits').innerText=p.totalQty;
     document.getElementById('detailTotalNet').innerText=mf.format(p.totalNet);
     document.getElementById('detailAvgPrice').innerText=mf.format(ap);
+    
+    const dStock = document.getElementById('detailStock');
+    if (currentStock) {
+        let s = currentStock[sku] !== undefined ? currentStock[sku] : 0;
+        dStock.innerText = s <= 0 ? '0 (Sin Stock)' : s;
+        dStock.className = s <= 0 ? 'text-red-600 font-black' : 'text-green-600 font-bold';
+    } else {
+        dStock.innerText = "N/A";
+        dStock.className = "text-gray-400";
+    }
+
     const tbody=document.getElementById('detailTableBody'); tbody.innerHTML='';
     [...docs].sort((a,b)=>b.fecha.split('/').reverse().join('').localeCompare(a.fecha.split('/').reverse().join(''))).forEach(d=>{
         const tr=document.createElement('tr'); tr.className='hover:bg-gray-50';
         tr.innerHTML=`<td class="p-2 font-mono">${d.fecha}</td><td class="p-2">${d.tipoDoc}</td><td class="p-2 font-mono font-bold">${d.numDoc}</td><td class="p-2 truncate max-w-[180px]" title="${d.cliente}">${d.cliente}</td><td class="p-2 text-center font-bold">${d.cantidad}</td><td class="p-2 text-right text-green-600">${mf.format(d.precioUnit)}</td><td class="p-2 text-right font-bold">${mf.format(d.neto)}</td>`;
         tbody.appendChild(tr);
     });
+    
     document.getElementById('printDetailTitle').innerText=p.name;
     document.getElementById('printDetailSku').innerText=`SKU: ${sku}`;
     document.getElementById('printDetailDate').innerText=new Date().toLocaleDateString();
@@ -620,19 +833,35 @@ function generateReport(){
     const sm=Array.from(document.querySelectorAll('.month-check:checked')).map(cb=>cb.value).sort();
     if(sm.length===0){alert("Selecciona meses.");return;}
     const iC=document.getElementById('includeCharts').checked, iP=document.getElementById('includePrices').checked;
+    
     const tbody=document.getElementById('reportTableBody'); tbody.innerHTML='';
+    
+    let grouped = {};
     let forCharts=[];
-    selectedSKUs.forEach(sku=>{
-        const p=productsMap[sku]; if(!p) return;
-        let rNet=0,rUnits=0,mHtml='',cData=[];
-        sm.forEach(m=>{const q=p.monthlyQty[m]||0,n=p.monthlyNet[m]||0;rNet+=n;rUnits+=q;cData.push(q);if(q!==0)mHtml+=`<span class="inline-block border border-gray-300 px-1 rounded text-[10px] mr-1 mb-1 font-bold">${m.split('-')[1]}: ${q}</span>`;});
-        if(rUnits!==0||rNet!==0){
-            const tr=document.createElement('tr');
-            tr.innerHTML=`<td class="py-2 px-2 border-b"><div class="font-bold text-xs">${p.name}</div><div class="font-mono text-gray-500 text-[9px]">${p.sku}</div></td><td class="py-2 px-2 border-b">${mHtml}</td><td class="py-2 px-2 border-b text-right font-bold"><div>${rUnits} un.</div><div class="text-blue-800 text-[10px]">${mf.format(rNet)}</div></td>`;
-            tbody.appendChild(tr);
-            if(iC) forCharts.push({name:p.name,sku:p.sku,data:cData,months:sm});
-        }
+    
+    selectedSKUs.forEach(sku => {
+        const p = productsMap[sku]; if(!p) return;
+        if(!grouped[p.categoria]) grouped[p.categoria] = [];
+        grouped[p.categoria].push(p);
     });
+
+    Object.keys(grouped).sort().forEach(cat => {
+        const catRow = document.createElement('tr');
+        catRow.innerHTML = `<td colspan="3" class="cat-header font-bold text-xs uppercase py-2 px-3 border-b-2 border-slate-400 mt-4">${cat}</td>`;
+        tbody.appendChild(catRow);
+
+        grouped[cat].forEach(p => {
+            let rNet=0,rUnits=0,mHtml='',cData=[];
+            sm.forEach(m=>{const q=p.monthlyQty[m]||0,n=p.monthlyNet[m]||0;rNet+=n;rUnits+=q;cData.push(q);if(q!==0)mHtml+=`<span class="inline-block border border-gray-300 px-1 rounded text-[10px] mr-1 mb-1 font-bold">${m.split('-')[1]}: ${q}</span>`;});
+            if(rUnits!==0||rNet!==0){
+                const tr=document.createElement('tr');
+                tr.innerHTML=`<td class="py-2 px-3 border-b"><div class="font-bold text-xs">${p.name}</div><div class="font-mono text-gray-500 text-[9px]">${p.sku}</div></td><td class="py-2 px-2 border-b">${mHtml}</td><td class="py-2 px-3 border-b text-right font-bold"><div>${rUnits} un.</div><div class="text-blue-800 text-[10px]">${mf.format(rNet)}</div></td>`;
+                tbody.appendChild(tr);
+                if(iC) forCharts.push({name:p.name,sku:p.sku,data:cData,months:sm});
+            }
+        });
+    });
+
     if(iP) buildPricesSection(sm);
     if(iC&&forCharts.length>0) forCharts.forEach(prod=>{const pg=document.createElement('div');pg.className='charts-page';pg.appendChild(createChartBox(prod));document.getElementById('chartsContainer').appendChild(pg);});
     document.getElementById('reportDate').innerText=new Date().toLocaleDateString();
@@ -642,30 +871,44 @@ function generateReport(){
 function buildPricesSection(sm){
     const pc=document.getElementById('pricesContainer');
     const ps=document.createElement('div'); ps.className='mb-6';
-    ps.innerHTML='<h2 class="text-lg font-bold mb-3 border-b-2 border-gray-300 pb-2">Análisis de Precios</h2>';
-    selectedSKUs.forEach(sku=>{
-        const p=productsMap[sku]; if(!p) return;
-        const ap=avgPrice(p);
-        let mph='<div class="flex flex-wrap gap-2 mt-2">';
-        sm.forEach(m=>{const ma=monthAvgPrice(p,m);if(ma>0){const mn2=m.split('-')[1]+'/'+m.split('-')[0].slice(2);mph+=`<div class="border rounded px-2 py-1 text-xs"><div class="text-gray-600 font-bold">${mn2}</div><div class="text-green-700 font-bold">${mf.format(ma)}</div></div>`;}});
-        mph+='</div>';
-        let mn=Infinity,mx=-Infinity; p.priceHistory.forEach(ph=>{if(ph.precio<mn)mn=ph.precio;if(ph.precio>mx)mx=ph.precio;});
-        const pv=mn!==Infinity?((mx-mn)/mn*100).toFixed(1):0;
-        const bx=document.createElement('div'); bx.className='border rounded p-3 mb-3 bg-gray-50';
-        bx.innerHTML=`<div class="flex justify-between mb-2"><div><h3 class="font-bold text-sm">${p.name}</h3><p class="text-xs text-gray-500">SKU: ${p.sku}</p></div><div class="text-right"><div class="text-xs text-gray-600">P.Prom</div><div class="text-lg font-bold text-green-700">${mf.format(ap)}</div></div></div>
-        <div class="flex gap-2 mb-2 text-xs">
-            <div class="border rounded px-2 py-1"><div class="text-gray-600">Min</div><div class="font-bold text-orange-600">${mn!==Infinity?mf.format(mn):'-'}</div></div>
-            <div class="border rounded px-2 py-1"><div class="text-gray-600">Max</div><div class="font-bold text-blue-600">${mx!==-Infinity?mf.format(mx):'-'}</div></div>
-            <div class="border rounded px-2 py-1"><div class="text-gray-600">Var.</div><div class="font-bold text-purple-600">${pv}%</div></div>
-        </div>${mph}`;
-        ps.appendChild(bx);
+    ps.innerHTML='<h2 class="text-lg font-bold mb-3 border-b-2 border-gray-300 pb-2 mt-6">Análisis de Precios</h2>';
+    
+    let grouped = {};
+    selectedSKUs.forEach(sku => {
+        const p = productsMap[sku]; if(!p) return;
+        if(!grouped[p.categoria]) grouped[p.categoria] = [];
+        grouped[p.categoria].push(p);
+    });
+
+    Object.keys(grouped).sort().forEach(cat => {
+        const catHead = document.createElement('h3');
+        catHead.className = 'bg-slate-800 text-white font-bold text-xs uppercase py-1 px-3 mb-3 rounded-t';
+        catHead.innerText = cat;
+        ps.appendChild(catHead);
+
+        grouped[cat].forEach(p => {
+            const ap=avgPrice(p);
+            let mph='<div class="flex flex-wrap gap-2 mt-2">';
+            sm.forEach(m=>{const ma=monthAvgPrice(p,m);if(ma>0){const mn2=m.split('-')[1]+'/'+m.split('-')[0].slice(2);mph+=`<div class="border rounded px-2 py-1 text-xs"><div class="text-gray-600 font-bold">${mn2}</div><div class="text-green-700 font-bold">${mf.format(ma)}</div></div>`;}});
+            mph+='</div>';
+            let mn=Infinity,mx=-Infinity; p.priceHistory.forEach(ph=>{if(ph.precio<mn)mn=ph.precio;if(ph.precio>mx)mx=ph.precio;});
+            const pv=mn!==Infinity?((mx-mn)/mn*100).toFixed(1):0;
+            const bx=document.createElement('div'); bx.className='border rounded p-3 mb-3 bg-gray-50 print-quiebre-row';
+            bx.innerHTML=`<div class="flex justify-between mb-2"><div><h3 class="font-bold text-sm">${p.name}</h3><p class="text-xs text-gray-500">SKU: ${p.sku}</p></div><div class="text-right"><div class="text-xs text-gray-600">P.Prom</div><div class="text-lg font-bold text-green-700">${mf.format(ap)}</div></div></div>
+            <div class="flex gap-2 mb-2 text-xs">
+                <div class="border rounded px-2 py-1"><div class="text-gray-600">Min</div><div class="font-bold text-orange-600">${mn!==Infinity?mf.format(mn):'-'}</div></div>
+                <div class="border rounded px-2 py-1"><div class="text-gray-600">Max</div><div class="font-bold text-blue-600">${mx!==-Infinity?mf.format(mx):'-'}</div></div>
+                <div class="border rounded px-2 py-1"><div class="text-gray-600">Var.</div><div class="font-bold text-purple-600">${pv}%</div></div>
+            </div>${mph}`;
+            ps.appendChild(bx);
+        });
     });
     pc.appendChild(ps);
 }
 function createChartBox(prod){
-    const w=document.createElement('div'); w.className='chart-print-box';
-    const t=document.createElement('h3'); t.className="text-center font-bold text-lg mb-2"; t.innerText=`${prod.name} (${prod.sku})`;
-    const cw=document.createElement('div'); cw.className='chart-canvas-wrapper';
+    const w=document.createElement('div'); w.className='chart-print-box print-quiebre-row mb-6';
+    const t=document.createElement('h3'); t.className="text-center font-bold text-sm mb-2"; t.innerText=`${prod.name} (${prod.sku})`;
+    const cw=document.createElement('div'); cw.className='chart-canvas-wrapper h-48';
     const c=document.createElement('canvas'); cw.appendChild(c); w.appendChild(t); w.appendChild(cw);
     setTimeout(()=>{
         const ctx=c.getContext('2d'); const dpr=window.devicePixelRatio||2;
@@ -703,7 +946,6 @@ function toggleMasterMonth(m,cb){
 }
 
 function getMasterTrend(p, visMonths){
-    // Compara promedio primera mitad vs segunda mitad de meses visibles
     const ms = visMonths.filter(m => (p.monthlyQty[m]||0) > 0);
     if(ms.length < 2) return 'estable';
     const mid = Math.floor(ms.length/2);
@@ -724,11 +966,11 @@ function applyMasterFilters(){ renderMasterTable(); }
 function renderMasterTable(){
     const vm = [...visibleMasterMonths].sort();
     const search = (document.getElementById('masterSearch').value||'').toLowerCase();
+    const cat = document.getElementById('catFilterMaster').value;
     const minTotal = parseInt(document.getElementById('masterMinTotal').value)||0;
     const sort = document.getElementById('masterSort').value;
     const mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-    // THEAD
     const thead = document.getElementById('masterThead');
     thead.innerHTML='';
     const hr = document.createElement('tr');
@@ -739,8 +981,8 @@ function renderMasterTable(){
         ${vm.map(m=>{const[y,mo]=m.split('-');return`<th class="p-2 text-center bg-slate-800 min-w-[55px]">${mn[parseInt(mo)-1]}<br><span class="text-slate-400 text-[9px]">${y}</span></th>`;}).join('')}`;
     thead.appendChild(hr);
 
-    // Filtrar y ordenar
     let prods = Object.values(productsMap).filter(p=>{
+        if(cat && p.categoria !== cat) return false;
         if(p.totalQty < minTotal) return false;
         if(search && !p.sku.toLowerCase().includes(search) && !p.name.toLowerCase().includes(search)) return false;
         const trend = getMasterTrend(p, vm);
@@ -748,7 +990,6 @@ function renderMasterTable(){
         return true;
     });
 
-    // Calcular caída reciente para ordenar
     prods.forEach(p=>{
         const ms = vm.filter(m=>(p.monthlyQty[m]||0)>0);
         if(ms.length>=2){
@@ -806,10 +1047,10 @@ function renderMasterTable(){
     });
 }
 
-// Búsqueda y filtros en tiempo real
 document.getElementById('masterSearch').addEventListener('input', renderMasterTable);
 document.getElementById('masterMinTotal').addEventListener('input', renderMasterTable);
 document.getElementById('masterSort').addEventListener('change', renderMasterTable);
+document.getElementById('catFilterMaster').addEventListener('change', renderMasterTable);
 
 function toggleMChip(name){
     const chip=document.getElementById('mchip-'+name);
@@ -819,7 +1060,6 @@ function toggleMChip(name){
 
 function exportMasterReport(){
     document.getElementById('masterReportDate').innerText=new Date().toLocaleDateString();
-    // Clonar tabla actual
     const src=document.getElementById('masterTableWrapper');
     document.getElementById('masterReportContent').innerHTML=src.innerHTML;
     ['tabsBar','panelMaster'].forEach(id=>document.getElementById(id).classList.add('hidden-section'));
@@ -857,10 +1097,13 @@ function runCaidasAnalysis(){
     const minPct=parseFloat(document.getElementById('sliderPct').value);
     const minU=parseFloat(document.getElementById('sliderUnits').value);
     const minB=parseFloat(document.getElementById('sliderMinBase').value);
+    
     if(bF>bT||cF>cT){alert("Rango inválido.");return;}
+    
     const bMs=getMonthsInRange(bF,bT), cMs=getMonthsInRange(cF,cT);
     const bN=bMs.length||1, cN=cMs.length||1;
     caidasData=[];
+    
     Object.values(productsMap).forEach(p=>{
         const bU=bMs.reduce((s,m)=>s+(p.monthlyQty[m]||0),0);
         const cU=cMs.reduce((s,m)=>s+(p.monthlyQty[m]||0),0);
@@ -871,12 +1114,21 @@ function runCaidasAnalysis(){
         if(cAvg>=bAvg) return;
         const dU=cAvg-bAvg, dPct=bAvg>0?(cAvg-bAvg)/bAvg*100:0, dNet=cNet/cN-bNet/bN;
         if(Math.abs(dPct)<minPct||Math.abs(dU)<minU) return;
+        
         const allMs=[...new Set([...bMs,...cMs])].sort();
         const ev=allMs.map(m=>({month:m,qty:p.monthlyQty[m]||0,isBase:bMs.includes(m),isComp:cMs.includes(m)}));
         const abs=Math.abs(dPct);
         const sev=abs>=75?'critica':abs>=50?'alta':abs>=25?'media':'leve';
-        caidasData.push({sku:p.sku,name:p.name,categoria:p.categoria||'Sin Categoría',baseUnits:bU,compUnits:cU,baseAvg:bAvg,compAvg:cAvg,deltaUnits:dU,deltaPct:dPct,deltaNet:dNet,baseNet:bNet,compNet:cNet,evolution:ev,severity:sev,allMs});
+        
+        let stockInfo = null;
+        if (currentStock) {
+            // Si subimos el reporte de stock y el producto no está, asumimos que su stock es 0 (quiebre)
+            stockInfo = typeof currentStock[p.sku] !== 'undefined' ? currentStock[p.sku] : 0;
+        }
+
+        caidasData.push({sku:p.sku, name:p.name, categoria:p.categoria||'Sin Categoría', baseUnits:bU, compUnits:cU, baseAvg:bAvg, compAvg:cAvg, deltaUnits:dU, deltaPct:dPct, deltaNet:dNet, baseNet:bNet, compNet:cNet, evolution:ev, severity:sev, allMs:allMs, stock: stockInfo});
     });
+    
     renderCaidasTable(); updateKpis();
     document.getElementById('caidasKpis').classList.remove('hidden-section');
     document.getElementById('btnExportCaidas').classList.remove('hidden-section');
@@ -902,23 +1154,43 @@ function sevBadge(s){
 function renderCaidasTable(){
     const tbody=document.getElementById('caidasTableBody'); tbody.innerHTML='';
     const sort=document.getElementById('sortCaidas').value;
+    const cat=document.getElementById('catFilterCaidas').value;
     const st=(document.getElementById('caidasSearch').value||'').toLowerCase();
+    
+    // Filtro de inventario
+    const stockFilter = document.getElementById('stockFilter') ? document.getElementById('stockFilter').value : 'all';
+
     let fl=caidasData.filter(d=>{
+        if(cat && d.categoria !== cat) return false;
         if(!activeChips.has(d.severity)) return false;
         if(st&&!d.name.toLowerCase().includes(st)&&!d.sku.toLowerCase().includes(st)) return false;
+        
+        if (stockFilter === 'instock' && (d.stock === null || d.stock <= 0)) return false;
+        if (stockFilter === 'outstock' && (d.stock === null || d.stock > 0)) return false;
+        
         return true;
     });
+    
     fl.sort((a,b)=>sort==='pct-desc'?a.deltaPct-b.deltaPct:sort==='units-desc'?a.deltaUnits-b.deltaUnits:sort==='base-desc'?b.baseAvg-a.baseAvg:a.name.localeCompare(b.name));
     document.getElementById('caidasResultCount').innerText=fl.length;
+    
     if(fl.length===0){document.getElementById('caidasEmpty').classList.remove('hidden-section');return;}
     document.getElementById('caidasEmpty').classList.add('hidden-section');
+    
     fl.forEach(d=>{
         const maxQ=Math.max(...d.evolution.map(e=>e.qty));
         const tr=document.createElement('tr');
         tr.className=`rl-${d.severity} hover:bg-gray-50 cursor-pointer`;
         tr.onclick=()=>showDetail(d.sku);
         const sc={critica:'text-red-600',alta:'text-orange-600',media:'text-yellow-600',leve:'text-green-600'};
-        tr.innerHTML=`<td class="p-3"><div class="font-bold text-slate-800 text-xs">${d.name}</div><div class="font-mono text-gray-400 text-[10px]">${d.sku}</div></td>
+        
+        let stockHtml = '';
+        if (d.stock !== null) {
+            if (d.stock <= 0) stockHtml = `<div class="mt-1 inline-block bg-red-100 text-red-800 text-[9px] font-black px-2 py-0.5 rounded border border-red-300">Quiebre Stock (0)</div>`;
+            else stockHtml = `<div class="mt-1 inline-block bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded border border-emerald-200">Stock: ${d.stock}</div>`;
+        }
+
+        tr.innerHTML=`<td class="p-3"><div class="font-bold text-slate-800 text-xs">${d.name}</div><div class="font-mono text-gray-400 text-[10px]">${d.sku}</div>${stockHtml}</td>
             <td class="p-3 text-center">${buildSpark(d.evolution,maxQ)}<div class="text-[9px] text-gray-400">${d.allMs.map(m=>m.split('-')[1]).join(' ')}</div></td>
             <td class="p-3 text-right"><div class="font-bold text-blue-700">${d.baseAvg.toFixed(1)}</div><div class="text-[10px] text-gray-400">${d.baseUnits} total</div></td>
             <td class="p-3 text-right"><div class="font-bold text-red-600">${d.compAvg.toFixed(1)}</div><div class="text-[10px] text-gray-400">${d.compUnits} total</div></td>
@@ -939,6 +1211,7 @@ function toggleChip(n){
     if(activeChips.has(n)){activeChips.delete(n);c.classList.remove('on');}else{activeChips.add(n);c.classList.add('on');}
     renderCaidasTable();
 }
+
 function exportCaidasReport(){
     const mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const fmt=m=>{const[y,mo]=m.split('-');return`${mn[parseInt(mo)-1]} ${y}`;};
@@ -953,66 +1226,67 @@ function exportCaidasReport(){
     };
 
     const st=(document.getElementById('caidasSearch').value||'').toLowerCase();
-    const fl=caidasData.filter(d=>
-        activeChips.has(d.severity)&&
-        (!st||d.name.toLowerCase().includes(st)||d.sku.toLowerCase().includes(st))
-    );
+    const cat=document.getElementById('catFilterCaidas').value;
+    const stockFilter = document.getElementById('stockFilter') ? document.getElementById('stockFilter').value : 'all';
+
+    const fl=caidasData.filter(d=>{
+        if(cat && d.categoria !== cat) return false;
+        if(!activeChips.has(d.severity)) return false;
+        if(st&&!d.name.toLowerCase().includes(st)&&!d.sku.toLowerCase().includes(st)) return false;
+        
+        if (stockFilter === 'instock' && (d.stock === null || d.stock <= 0)) return false;
+        if (stockFilter === 'outstock' && (d.stock === null || d.stock > 0)) return false;
+        
+        return true;
+    });
     if(fl.length===0) return;
 
-    // ── UMBRAL DE VOLUMEN ─────────────────────────────────────────────────────
-    // Se calcula dinámicamente: mediana del baseAvg de todos los productos filtrados.
-    // Productos con baseAvg >= mediana → "Alto Volumen" (prioridad)
-    // Productos con baseAvg <  mediana → "Bajo Volumen" (monitorear)
-    // Así si tus productos van de 1 a 1800 und/mes, la línea cae en un punto real,
-    // no en un percentil arbitrario que cambia con cada categoría.
     const sortedBase=[...fl].map(d=>d.baseAvg).sort((a,b)=>a-b);
     const mediana=sortedBase[Math.floor(sortedBase.length/2)];
-    // Mínimo absoluto: siempre consideramos "alto volumen" a quien vendía más de 5 und/mes
     const UMBRAL_VOLUMEN=Math.max(mediana, 5);
 
-    // Score de impacto real = unidades perdidas/mes × (% caída / 100)
-    // Ej: 100→10 = 90 und × 0.9 = 81 | 2→0 = 2 und × 1.0 = 2
-    // Ambos tienen 100% de caída pero el primero pesa 40x más
     const scoreImpacto=d=>Math.abs(d.deltaUnits)*Math.abs(d.deltaPct/100);
 
-    // Agrupar por categoría
     const bycat={};
     fl.forEach(d=>{
-        const cat=d.categoria||'Sin Categoría';
-        if(!bycat[cat]) bycat[cat]=[];
-        bycat[cat].push(d);
+        const c=d.categoria||'Sin Categoría';
+        if(!bycat[c]) bycat[c]=[];
+        bycat[c].push(d);
     });
 
-    // Ordenar categorías por impacto total (Σ score de todos sus productos)
     const catOrder=Object.keys(bycat).sort((a,b)=>{
         const ia=bycat[a].reduce((s,d)=>s+scoreImpacto(d),0);
         const ib=bycat[b].reduce((s,d)=>s+scoreImpacto(d),0);
         return ib-ia;
     });
 
-    // Dentro de cada categoría, separar y ordenar por impacto DESC
     const globalMaxBase=Math.max(...fl.map(d=>d.baseAvg),1);
 
     const body=document.getElementById('caidasReportBody');
     body.innerHTML='';
 
-    // ── RENDER DE UNA TARJETA DE PRODUCTO ────────────────────────────────────
     const makeCard=(d, globalMaxBase)=>{
         const c=SC[d.severity]||SC.leve;
-        // Barra proporcional al volumen base global (max 56px)
         const barTotalW=56;
         const barBaseW=Math.max(2,Math.round((d.baseAvg/globalMaxBase)*barTotalW));
         const barCompW=d.baseAvg>0?Math.max(0,Math.round((d.compAvg/d.baseAvg)*barBaseW)):0;
 
+        let stockInfoHtml = '';
+        if(d.stock !== null) {
+            stockInfoHtml = d.stock <= 0 
+                ? `<span style="background:#fee2e2;color:#991b1b;padding:1px 3px;border-radius:2px;font-size:5.5pt;font-weight:900;margin-left:4px;">Stock: 0</span>`
+                : `<span style="color:#059669;padding:1px 3px;font-size:5.5pt;font-weight:700;margin-left:4px;">Stock: ${d.stock}</span>`;
+        }
+
         const cell=document.createElement('div');
+        cell.className = 'print-quiebre-row';
         cell.style.cssText=`background:${c.bg};border:1px solid ${c.border};border-left:3px solid ${c.bar};padding:4px 5px;display:flex;flex-direction:column;gap:2px;`;
 
-        // Línea 1: nombre (truncado) + % caída en grande
         cell.innerHTML=`
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;">
             <div style="flex:1;min-width:0;">
               <div style="font-size:6.8pt;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${d.name}">${d.name}</div>
-              <div style="font-size:5.8pt;color:#64748b;font-family:monospace;letter-spacing:-.2px;">${d.sku}</div>
+              <div style="font-size:5.8pt;color:#64748b;font-family:monospace;letter-spacing:-.2px;">${d.sku} ${stockInfoHtml}</div>
             </div>
             <div style="text-align:right;flex-shrink:0;line-height:1;">
               <div style="font-size:12pt;font-weight:900;color:${c.txt};">${d.deltaPct.toFixed(0)}%</div>
@@ -1034,11 +1308,11 @@ function exportCaidasReport(){
         return cell;
     };
 
-    // ── RENDER DE UN SUBGRUPO (con o sin título) ──────────────────────────────
     const renderSubgroup=(list, titulo, bgTitle, textTitle)=>{
         if(!list||list.length===0) return;
         if(titulo){
             const sub=document.createElement('div');
+            sub.className = 'print-quiebre-row';
             sub.style.cssText=`background:${bgTitle};color:${textTitle};padding:2px 8px;font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;`;
             sub.innerText=titulo;
             catWrap.appendChild(sub);
@@ -1050,68 +1324,137 @@ function exportCaidasReport(){
         catWrap.appendChild(grid);
     };
 
-    // ── LOOP PRINCIPAL ────────────────────────────────────────────────────────
-    let catWrap; // referencia accesible dentro de renderSubgroup
-    catOrder.forEach(cat=>{
-        const items=bycat[cat];
-        // Separar por umbral absoluto y ordenar por score de impacto
+    let catWrap; 
+    catOrder.forEach(c=>{
+        const items=bycat[c];
         const prioritarios=items.filter(d=>d.baseAvg>=UMBRAL_VOLUMEN).sort((a,b)=>scoreImpacto(b)-scoreImpacto(a));
         const monitorear  =items.filter(d=>d.baseAvg< UMBRAL_VOLUMEN).sort((a,b)=>scoreImpacto(b)-scoreImpacto(a));
 
         catWrap=document.createElement('div');
+        catWrap.className = 'print-quiebre-row';
         catWrap.style.cssText='margin-bottom:10px;';
 
-        // Cabecera de categoría con contadores de severidad
-        const sevCounts=Object.entries(SC).map(([sev,c])=>{
+        const sevCounts=Object.entries(SC).map(([sev,st])=>{
             const n=items.filter(d=>d.severity===sev).length;
-            return n>0?`<span style="background:${c.bg};color:${c.txt};border:1px solid ${c.border};padding:1px 5px;border-radius:8px;font-size:6pt;font-weight:700;margin-left:3px;">${c.label} ${n}</span>`:'';
+            return n>0?`<span style="background:${st.bg};color:${st.txt};border:1px solid ${st.border};padding:1px 5px;border-radius:8px;font-size:6pt;font-weight:700;margin-left:3px;">${st.label} ${n}</span>`:'';
         }).filter(Boolean).join('');
 
         const catHead=document.createElement('div');
         catHead.style.cssText='background:#0f172a;color:white;padding:5px 8px;font-size:8.5pt;font-weight:900;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;';
-        catHead.innerHTML=`<span>${cat} <span style="font-size:6.5pt;font-weight:300;opacity:.6;">${items.length} productos</span></span><span>${sevCounts}</span>`;
+        catHead.innerHTML=`<span>${c} <span style="font-size:6.5pt;font-weight:300;opacity:.6;">${items.length} productos</span></span><span>${sevCounts}</span>`;
         catWrap.appendChild(catHead);
 
         if(prioritarios.length>0 && monitorear.length>0){
-            // Hay ambos grupos → mostrar separados con subtítulo
-            renderSubgroup(prioritarios,
-                `⚡ Prioridad — vendía ${prioritarios[0].baseAvg%1===0?prioritarios[0].baseAvg.toFixed(0):prioritarios[0].baseAvg.toFixed(1)}+ und/mes`,
-                '#7f1d1d','#fca5a5');
-            renderSubgroup(monitorear,
-                `◎ Monitorear — volumen menor de ${Math.ceil(UMBRAL_VOLUMEN)} und/mes`,
-                '#e2e8f0','#475569');
+            renderSubgroup(prioritarios, `⚡ Prioridad — vendía ${prioritarios[0].baseAvg%1===0?prioritarios[0].baseAvg.toFixed(0):prioritarios[0].baseAvg.toFixed(1)}+ und/mes`, '#7f1d1d','#fca5a5');
+            renderSubgroup(monitorear, `◎ Monitorear — volumen menor de ${Math.ceil(UMBRAL_VOLUMEN)} und/mes`, '#e2e8f0','#475569');
         } else {
-            // Solo un grupo → sin subtítulo, más limpio
             renderSubgroup(prioritarios.length>0?prioritarios:monitorear, null, null, null);
         }
 
         body.appendChild(catWrap);
     });
 
-    // ── PRINT STYLES ──────────────────────────────────────────────────────────
-    if(!document.getElementById('printStylesCaidas')){
-        const s=document.createElement('style');
-        s.id='printStylesCaidas';
-        s.innerHTML=`
-            @media print {
-                @page { size: letter portrait; margin: 0.6cm; }
-                body > *:not(#caidasReportView) { display:none !important; }
-                #caidasReportView { display:block !important; max-width:100% !important; padding:0 !important; }
-                #caidasReportBody > div { page-break-inside:avoid; }
-                .no-print { display:none !important; }
-            }
-        `;
-        document.head.appendChild(s);
-    }
-
     ['tabsBar','panelCaidas'].forEach(id=>document.getElementById(id).classList.add('hidden-section'));
     document.getElementById('caidasReportView').classList.remove('hidden-section');
 }
+
 function closeCaidasReport(){
     document.getElementById('caidasReportView').classList.add('hidden-section');
     document.getElementById('tabsBar').classList.remove('hidden-section');
     document.getElementById('panelCaidas').classList.remove('hidden-section');
 }
+
+// NUEVA FUNCIÓN: Genera Reporte A4 específico para Compras
+function exportQuiebresReport() {
+    document.getElementById('quiebresReportDate').innerText = new Date().toLocaleDateString('es-CL');
+    
+    // Obtener filtros actuales de pantalla (Categoría y Buscador)
+    const st = (document.getElementById('caidasSearch').value || '').toLowerCase();
+    const cat = document.getElementById('catFilterCaidas').value;
+    
+    // Filtramos ESTRICTAMENTE los que tienen stock <= 0 (Quiebres)
+    const fl = caidasData.filter(d => {
+        if(d.stock === null || d.stock > 0) return false; // Solo quiebres
+        if(cat && d.categoria !== cat) return false;
+        if(st && !d.name.toLowerCase().includes(st) && !d.sku.toLowerCase().includes(st)) return false;
+        return true;
+    });
+
+    if(fl.length === 0) {
+        alert("No hay productos sin stock (0) dentro de la categoría/búsqueda actual para generar el reporte.");
+        return;
+    }
+
+    // Ordenamos por impacto de caída
+    const scoreImpacto = d => Math.abs(d.deltaUnits) * Math.abs(d.deltaPct/100);
+    fl.sort((a,b) => scoreImpacto(b) - scoreImpacto(a));
+
+    // Agrupamos por categoría
+    const bycat = {};
+    fl.forEach(d => {
+        const c = d.categoria || 'Sin Categoría';
+        if(!bycat[c]) bycat[c] = [];
+        bycat[c].push(d);
+    });
+
+    const body = document.getElementById('quiebresReportBody');
+    body.innerHTML = '';
+
+    Object.keys(bycat).sort().forEach(c => {
+        const items = bycat[c];
+        
+        // Cabecera Categoría
+        const catWrap = document.createElement('div');
+        catWrap.className = 'print-quiebre-row';
+        catWrap.style.cssText = 'margin-bottom:12px; border:1px solid #e5e7eb; border-radius:4px; overflow:hidden;';
+        
+        const catHead = document.createElement('div');
+        catHead.style.cssText = 'background:#f8fafc; border-bottom:2px solid #cbd5e1; padding:6px 10px; font-size:10pt; font-weight:800; color:#1e293b; text-transform:uppercase;';
+        catHead.innerHTML = `${c} <span style="font-size:8pt; font-weight:500; color:#64748b; margin-left:8px;">${items.length} productos a reponer</span>`;
+        catWrap.appendChild(catHead);
+
+        // Tabla interna
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%; border-collapse:collapse; font-size:8pt; text-align:left;';
+        table.innerHTML = `
+            <thead>
+                <tr style="background:#f1f5f9; color:#475569; border-bottom:1px solid #e2e8f0;">
+                    <th style="padding:4px 8px; width:15%;">SKU</th>
+                    <th style="padding:4px 8px; width:45%;">Producto</th>
+                    <th style="padding:4px 8px; text-align:center;">Venta Histórica</th>
+                    <th style="padding:4px 8px; text-align:center;">Caída Mensual</th>
+                    <th style="padding:4px 8px; text-align:center;">Stock</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(d => `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:4px 8px; font-family:monospace; color:#64748b;">${d.sku}</td>
+                        <td style="padding:4px 8px; font-weight:700; color:#0f172a;">${d.name}</td>
+                        <td style="padding:4px 8px; text-align:center; color:#3b82f6; font-weight:600;">${d.baseAvg.toFixed(1)} und/m</td>
+                        <td style="padding:4px 8px; text-align:center; color:#b91c1c; font-weight:700;">${d.deltaPct.toFixed(0)}% (🔻 ${Math.abs(d.deltaUnits).toFixed(1)})</td>
+                        <td style="padding:4px 8px; text-align:center;">
+                            <span style="background:#fef2f2; color:#b91c1c; padding:2px 6px; border-radius:12px; font-weight:900; font-size:7pt; border:1px solid #fca5a5;">0</span>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        `;
+        
+        catWrap.appendChild(table);
+        body.appendChild(catWrap);
+    });
+
+    ['tabsBar','panelCaidas'].forEach(id => document.getElementById(id).classList.add('hidden-section'));
+    document.getElementById('quiebresReportView').classList.remove('hidden-section');
+}
+
+function closeQuiebresReport() {
+    document.getElementById('quiebresReportView').classList.add('hidden-section');
+    document.getElementById('tabsBar').classList.remove('hidden-section');
+    document.getElementById('panelCaidas').classList.remove('hidden-section');
+}
+
 </script>
 </body>
 </html>
