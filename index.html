@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador Ventas v16.6</title>
+    <title>Analizador Ventas v16.8</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -82,7 +82,7 @@
 <div class="max-w-screen-2xl mx-auto mb-4 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
     <div>
         <h1 class="text-2xl font-black text-slate-800"><i class="fas fa-chart-line text-blue-600"></i> Analizador Ventas <span class="text-blue-600">AROMAKER</span></h1>
-        <p class="text-xs text-slate-400 font-mono">v16.6 · Módulo Compras (Alerta de Quiebres)</p>
+        <p class="text-xs text-slate-400 font-mono">v16.8 · Módulo Compras (Cruces Inteligentes)</p>
     </div>
     <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
         <div class="bg-white p-3 rounded-xl shadow border border-blue-100 flex-1">
@@ -269,47 +269,70 @@
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 bg-slate-50 rounded-xl p-4">
+        
+        <!-- NUEVOS FILTROS EXTENDIDOS -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 bg-slate-50 rounded-xl p-4 border border-slate-200 shadow-sm">
             <div>
                 <label class="text-xs font-bold text-gray-700 block mb-1">Categoría</label>
-                <select id="catFilterCaidas" class="border rounded px-2 py-1 text-sm w-full bg-white outline-none" onchange="renderCaidasTable()"></select>
+                <select id="catFilterCaidas" class="border rounded px-2 py-1.5 text-sm w-full bg-white outline-none focus:border-blue-500" onchange="updateCaidasView()"></select>
             </div>
             <div>
                 <label class="text-xs font-bold text-gray-700 block mb-1">Caída mínima % <span id="lblPct" class="text-blue-600">0%</span></label>
-                <input type="range" id="sliderPct" min="0" max="100" value="0" step="5" class="w-full" oninput="document.getElementById('lblPct').innerText=this.value+'%'">
+                <input type="range" id="sliderPct" min="0" max="100" value="0" step="5" class="w-full" oninput="document.getElementById('lblPct').innerText=this.value+'%'; updateCaidasView()">
             </div>
             <div>
-                <label class="text-xs font-bold text-gray-700 block mb-1">Caída mínima unidades <span id="lblUnits" class="text-blue-600">0</span></label>
-                <input type="range" id="sliderUnits" min="0" max="200" value="0" step="1" class="w-full" oninput="document.getElementById('lblUnits').innerText=this.value">
+                <label class="text-xs font-bold text-gray-700 block mb-1">Caída mínima (Unds) <span id="lblUnits" class="text-blue-600">0</span></label>
+                <input type="range" id="sliderUnits" min="0" max="200" value="0" step="1" class="w-full" oninput="document.getElementById('lblUnits').innerText=this.value; updateCaidasView()">
             </div>
             <div>
-                <label class="text-xs font-bold text-gray-700 block mb-1">Ventas mínimas en base <span id="lblMinBase" class="text-blue-600">1</span> und/mes</label>
-                <input type="range" id="sliderMinBase" min="1" max="500" value="1" step="1" class="w-full" oninput="document.getElementById('lblMinBase').innerText=this.value">
+                <label class="text-xs font-bold text-gray-700 block mb-1">Base mínima (Und/mes) <span id="lblMinBase" class="text-blue-600">1</span></label>
+                <input type="range" id="sliderMinBase" min="1" max="500" value="1" step="1" class="w-full" oninput="document.getElementById('lblMinBase').innerText=this.value; updateCaidasView()">
+            </div>
+            <div>
+                <label class="text-xs font-bold text-gray-700 block mb-1" title="Filtra los productos que te hacen perder dinero mensual">Pérdida Neta Mín. ($) ≥</label>
+                <input type="number" id="minNetLoss" min="0" step="5000" value="0" class="border rounded px-2 py-1.5 text-sm w-full outline-none focus:border-blue-500 font-bold text-red-600" placeholder="Ej: 50000" oninput="updateCaidasView()">
             </div>
         </div>
-        <div class="flex flex-wrap gap-4 items-center mb-4 border-b pb-4">
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-gray-600">Severidad visible:</span>
+
+        <div class="flex flex-wrap gap-4 items-center mb-4 border-b pb-4 bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+            <!-- Chips de Severidad -->
+            <div class="flex items-center gap-2 border-r pr-4">
                 <span class="chip sv-critica on" id="chip-critica" onclick="toggleChip('critica')"><i class="fas fa-circle-exclamation"></i> Crítica ≥75%</span>
                 <span class="chip sv-alta on"    id="chip-alta"    onclick="toggleChip('alta')"><i class="fas fa-arrow-down"></i> Alta 50–74%</span>
                 <span class="chip sv-media on"   id="chip-media"   onclick="toggleChip('media')"><i class="fas fa-minus"></i> Media 25–49%</span>
                 <span class="chip sv-leve on"    id="chip-leve"    onclick="toggleChip('leve')"><i class="fas fa-arrow-up-right-from-square"></i> Leve &lt;25%</span>
             </div>
             
-            <div class="h-6 w-px bg-gray-300 hidden md:block" id="stockDivisor" style="display:none;"></div>
+            <!-- NUEVO: CRUCES INTELIGENTES -->
+            <div class="flex items-center gap-2 border-r pr-4">
+                <label class="text-xs font-bold text-blue-800 uppercase"><i class="fas fa-bolt text-yellow-500"></i> Cruces Inteligentes:</label>
+                <select id="smartFilter" onchange="handleSmartFilter()" class="border border-blue-300 bg-blue-50 text-blue-800 font-bold rounded px-2 py-1 text-xs outline-none cursor-pointer shadow-sm">
+                    <option value="custom">Filtros Manuales (Personalizado)</option>
+                    <option value="sobrestock">🚨 Estancamiento: Caída Alta + HAY Stock</option>
+                    <option value="quiebre">⚠️ Urgencia Compras: Caída Alta + SIN Stock</option>
+                    <option value="fuga">💸 Fuga Dinero: Pérdida > $50.000 / mes</option>
+                </select>
+            </div>
             
             <div class="flex items-center gap-2" id="stockoutFilterContainer" style="display:none;">
-                <label class="text-xs font-bold text-gray-700">Estado Inventario:</label>
-                <select id="stockFilter" onchange="renderCaidasTable()" class="border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold rounded px-2 py-1 text-xs outline-none cursor-pointer">
+                <label class="text-xs font-bold text-gray-700">Inventario:</label>
+                <select id="stockFilter" onchange="handleStockFilterChange()" class="border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold rounded px-2 py-1 text-xs outline-none cursor-pointer">
                     <option value="all">Ver Todos</option>
                     <option value="instock">Solo CON stock (>0)</option>
                     <option value="outstock">Solo SIN stock (0)</option>
+                    <option value="stock_range">Rango específico...</option>
                 </select>
+                <div id="stockRangeInputs" class="hidden-section flex items-center gap-1">
+                    <input type="number" id="minStockVal" placeholder="Min" class="border rounded px-2 py-1 text-xs w-16 outline-none" oninput="updateCaidasView()">
+                    <span class="text-xs text-gray-500">-</span>
+                    <input type="number" id="maxStockVal" placeholder="Max" class="border rounded px-2 py-1 text-xs w-16 outline-none" oninput="updateCaidasView()">
+                </div>
             </div>
         </div>
+        
         <div class="flex gap-3 flex-wrap items-center">
             <button onclick="runCaidasAnalysis()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded-lg shadow text-sm"><i class="fas fa-magnifying-glass-chart"></i> Analizar Caídas</button>
-            <input type="text" id="caidasSearch" placeholder="Filtrar por nombre/SKU..." class="border rounded px-3 py-1.5 text-sm outline-none w-48 bg-gray-50">
+            <input type="text" id="caidasSearch" placeholder="Filtrar por nombre/SKU..." class="border rounded px-3 py-1.5 text-sm outline-none w-48 bg-gray-50" oninput="updateCaidasView()">
             <button onclick="exportCaidasReport()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg text-sm hidden-section" id="btnExportCaidas"><i class="fas fa-print"></i> Imprimir Caídas</button>
             <button onclick="exportQuiebresReport()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm shadow hidden-section" id="btnAlertaCompras"><i class="fas fa-exclamation-triangle"></i> Generar Alerta Compras</button>
         </div>
@@ -326,7 +349,8 @@
     <div class="card">
         <div class="flex justify-between items-center mb-3">
             <h3 class="font-bold text-slate-700 text-sm"><span id="caidasResultCount" class="text-blue-600 font-black">0</span> productos con caída</h3>
-            <select id="sortCaidas" class="border rounded px-2 py-1 text-xs bg-white" onchange="renderCaidasTable()">
+            <select id="sortCaidas" class="border rounded px-2 py-1 text-xs bg-white" onchange="updateCaidasView()">
+                <option value="net-desc">Mayor fuga de Dinero ($) primero</option>
                 <option value="pct-desc">Mayor caída % primero</option>
                 <option value="units-desc">Mayor caída und. primero</option>
                 <option value="base-desc">Mayor venta base</option>
@@ -343,7 +367,7 @@
                         <th class="p-3 text-right">Comp und/mes</th>
                         <th class="p-3 text-right">Δ und/mes</th>
                         <th class="p-3 text-right">Δ %</th>
-                        <th class="p-3 text-right">Δ Neto/mes</th>
+                        <th class="p-3 text-right text-red-300">Δ Neto/mes ($)</th>
                         <th class="p-3 text-center">Severidad</th>
                     </tr>
                 </thead>
@@ -351,7 +375,7 @@
             </table>
             <div id="caidasEmpty" class="text-center py-12 text-gray-400">
                 <i class="fas fa-magnifying-glass text-3xl mb-3 block"></i>
-                <p class="font-bold">Configura los períodos y presiona "Analizar Caídas"</p>
+                <p class="font-bold">Ajusta los filtros o presiona "Analizar Caídas"</p>
             </div>
         </div>
     </div>
@@ -1094,11 +1118,8 @@ function getMonthsInRange(f,t){ return availableMonths.filter(m=>m>=f&&m<=t); }
 function runCaidasAnalysis(){
     const bF=document.getElementById('baseFrom').value, bT=document.getElementById('baseTo').value;
     const cF=document.getElementById('compFrom').value, cT=document.getElementById('compTo').value;
-    const minPct=parseFloat(document.getElementById('sliderPct').value);
-    const minU=parseFloat(document.getElementById('sliderUnits').value);
-    const minB=parseFloat(document.getElementById('sliderMinBase').value);
     
-    if(bF>bT||cF>cT){alert("Rango inválido.");return;}
+    if(bF>bT||cF>cT){alert("Rango de fechas inválido.");return;}
     
     const bMs=getMonthsInRange(bF,bT), cMs=getMonthsInRange(cF,cT);
     const bN=bMs.length||1, cN=cMs.length||1;
@@ -1110,10 +1131,12 @@ function runCaidasAnalysis(){
         const bNet=bMs.reduce((s,m)=>s+(p.monthlyNet[m]||0),0);
         const cNet=cMs.reduce((s,m)=>s+(p.monthlyNet[m]||0),0);
         const bAvg=bU/bN, cAvg=cU/cN;
-        if(bAvg<minB) return;
-        if(cAvg>=bAvg) return;
-        const dU=cAvg-bAvg, dPct=bAvg>0?(cAvg-bAvg)/bAvg*100:0, dNet=cNet/cN-bNet/bN;
-        if(Math.abs(dPct)<minPct||Math.abs(dU)<minU) return;
+        
+        // Solo guardar si hay venta base y si es efectivamente una caída
+        if(bAvg <= 0) return;
+        if(cAvg >= bAvg) return;
+        
+        const dU=cAvg-bAvg, dPct=(cAvg-bAvg)/bAvg*100, dNet=cNet/cN-bNet/bN;
         
         const allMs=[...new Set([...bMs,...cMs])].sort();
         const ev=allMs.map(m=>({month:m,qty:p.monthlyQty[m]||0,isBase:bMs.includes(m),isComp:cMs.includes(m)}));
@@ -1122,18 +1145,119 @@ function runCaidasAnalysis(){
         
         let stockInfo = null;
         if (currentStock) {
-            // Si subimos el reporte de stock y el producto no está, asumimos que su stock es 0 (quiebre)
             stockInfo = typeof currentStock[p.sku] !== 'undefined' ? currentStock[p.sku] : 0;
         }
 
         caidasData.push({sku:p.sku, name:p.name, categoria:p.categoria||'Sin Categoría', baseUnits:bU, compUnits:cU, baseAvg:bAvg, compAvg:cAvg, deltaUnits:dU, deltaPct:dPct, deltaNet:dNet, baseNet:bNet, compNet:cNet, evolution:ev, severity:sev, allMs:allMs, stock: stockInfo});
     });
     
-    renderCaidasTable(); updateKpis();
+    updateCaidasView();
     document.getElementById('caidasKpis').classList.remove('hidden-section');
     document.getElementById('btnExportCaidas').classList.remove('hidden-section');
-    document.getElementById('caidasEmpty').classList.add('hidden-section');
-    document.getElementById('caidasSearch').addEventListener('input',()=>renderCaidasTable());
+}
+
+// NUEVO: Maneja el selector de "Cruces Inteligentes"
+function handleSmartFilter() {
+    const val = document.getElementById('smartFilter').value;
+
+    let targetPct = 0;
+    let targetLoss = 0;
+    let targetStock = 'all';
+    let targetChips = ['critica', 'alta', 'media', 'leve'];
+
+    if (val === 'sobrestock') {
+        // Riesgo de estancamiento: Caídas del 50%+ y que AÚN tengan stock > 0
+        targetPct = 50;
+        targetStock = 'instock';
+        targetChips = ['critica', 'alta'];
+    } else if (val === 'quiebre') {
+        // Urgencia de compras: Caídas del 50%+ porque NO hay stock (0)
+        targetPct = 50;
+        targetStock = 'outstock';
+        targetChips = ['critica', 'alta'];
+    } else if (val === 'fuga') {
+        // Impacto financiero: Caídas que hacen perder más de $50,000 netos mensuales
+        targetLoss = 50000;
+        // Mantiene el resto de los chips abiertos para no perderse ninguna fuga de dinero
+    }
+
+    // Aplicar visualmente los cambios a la UI
+    document.getElementById('sliderPct').value = targetPct;
+    document.getElementById('lblPct').innerText = targetPct + '%';
+    
+    document.getElementById('minNetLoss').value = targetLoss;
+
+    if (document.getElementById('stockFilter')) {
+        document.getElementById('stockFilter').value = targetStock;
+    }
+
+    activeChips = new Set(targetChips);
+    ['critica', 'alta', 'media', 'leve'].forEach(c => {
+        const el = document.getElementById('chip-' + c);
+        if(activeChips.has(c)) el.classList.add('on');
+        else el.classList.remove('on');
+    });
+
+    handleStockFilterChange(); // Dispara la actualización de la tabla
+}
+
+// FUNCION CENTRAL PARA FILTRAR VISTA Y REPORTE IDÉNTICAMENTE
+function getFilteredCaidasData() {
+    const cat = document.getElementById('catFilterCaidas').value;
+    const st = (document.getElementById('caidasSearch').value||'').toLowerCase();
+    const stockFilter = document.getElementById('stockFilter') ? document.getElementById('stockFilter').value : 'all';
+
+    const minPct = parseFloat(document.getElementById('sliderPct').value) || 0;
+    const minU = parseFloat(document.getElementById('sliderUnits').value) || 0;
+    const minB = parseFloat(document.getElementById('sliderMinBase').value) || 0;
+    const minNetLoss = parseFloat(document.getElementById('minNetLoss').value) || 0;
+
+    let minStockVal = parseFloat(document.getElementById('minStockVal')?.value);
+    let maxStockVal = parseFloat(document.getElementById('maxStockVal')?.value);
+    if(isNaN(minStockVal)) minStockVal = -Infinity;
+    if(isNaN(maxStockVal)) maxStockVal = Infinity;
+
+    return caidasData.filter(d => {
+        // Filtros Visuales (Chips, Buscador, Categoría)
+        if(cat && d.categoria !== cat) return false;
+        if(!activeChips.has(d.severity)) return false;
+        if(st && !d.name.toLowerCase().includes(st) && !d.sku.toLowerCase().includes(st)) return false;
+
+        // Filtros de Stock Avanzados
+        if (stockFilter === 'instock' && (d.stock === null || d.stock <= 0)) return false;
+        if (stockFilter === 'outstock' && (d.stock === null || d.stock > 0)) return false;
+        if (stockFilter === 'stock_range' && d.stock !== null) {
+            if(d.stock < minStockVal || d.stock > maxStockVal) return false;
+        }
+
+        // Sliders Numéricos
+        if(d.baseAvg < minB) return false;
+        if(Math.abs(d.deltaPct) < minPct) return false;
+        if(Math.abs(d.deltaUnits) < minU) return false;
+        
+        // Filtro de Dinero: Si se define pérdida mínima, excluimos los que pierden menos que eso.
+        // Ojo: deltaNet es negativo cuando es pérdida. Ej: d.deltaNet = -5000. Si exigimos pérdida de 10000, 
+        // queremos rechazar -5000 porque -5000 > -10000.
+        if (minNetLoss > 0 && d.deltaNet > -minNetLoss) return false;
+
+        return true;
+    });
+}
+
+function handleStockFilterChange() {
+    const val = document.getElementById('stockFilter').value;
+    const rangeInputs = document.getElementById('stockRangeInputs');
+    if(val === 'stock_range') {
+        rangeInputs.classList.remove('hidden-section');
+    } else {
+        rangeInputs.classList.add('hidden-section');
+    }
+    updateCaidasView();
+}
+
+function updateCaidasView() {
+    renderCaidasTable();
+    updateKpis();
 }
 
 function buildSpark(ev,maxQ){
@@ -1154,27 +1278,33 @@ function sevBadge(s){
 function renderCaidasTable(){
     const tbody=document.getElementById('caidasTableBody'); tbody.innerHTML='';
     const sort=document.getElementById('sortCaidas').value;
-    const cat=document.getElementById('catFilterCaidas').value;
-    const st=(document.getElementById('caidasSearch').value||'').toLowerCase();
     
-    // Filtro de inventario
-    const stockFilter = document.getElementById('stockFilter') ? document.getElementById('stockFilter').value : 'all';
-
-    let fl=caidasData.filter(d=>{
-        if(cat && d.categoria !== cat) return false;
-        if(!activeChips.has(d.severity)) return false;
-        if(st&&!d.name.toLowerCase().includes(st)&&!d.sku.toLowerCase().includes(st)) return false;
-        
-        if (stockFilter === 'instock' && (d.stock === null || d.stock <= 0)) return false;
-        if (stockFilter === 'outstock' && (d.stock === null || d.stock > 0)) return false;
-        
-        return true;
+    // Obtenemos exactamente los datos filtrados en tiempo real
+    let fl = getFilteredCaidasData();
+    
+    // Nueva opción de ordenamiento por fuga de dinero
+    fl.sort((a,b)=>{
+        if(sort==='net-desc') return a.deltaNet - b.deltaNet; // Más negativo primero
+        if(sort==='pct-desc') return a.deltaPct - b.deltaPct; // Más negativo primero
+        if(sort==='units-desc') return a.deltaUnits - b.deltaUnits; // Más negativo primero
+        if(sort==='base-desc') return b.baseAvg - a.baseAvg;
+        return a.name.localeCompare(b.name);
     });
     
-    fl.sort((a,b)=>sort==='pct-desc'?a.deltaPct-b.deltaPct:sort==='units-desc'?a.deltaUnits-b.deltaUnits:sort==='base-desc'?b.baseAvg-a.baseAvg:a.name.localeCompare(b.name));
     document.getElementById('caidasResultCount').innerText=fl.length;
     
-    if(fl.length===0){document.getElementById('caidasEmpty').classList.remove('hidden-section');return;}
+    if(fl.length===0 && caidasData.length > 0){
+        // Si hay datos pero los filtros lo escondieron todo
+        document.getElementById('caidasEmpty').innerHTML = `<i class="fas fa-filter text-3xl mb-3 block text-gray-300"></i><p class="font-bold text-gray-500">No hay productos que coincidan con los filtros actuales.</p>`;
+        document.getElementById('caidasEmpty').classList.remove('hidden-section');
+        return;
+    } else if (fl.length===0) {
+        // Aún no se presiona analizar
+        document.getElementById('caidasEmpty').innerHTML = `<i class="fas fa-magnifying-glass text-3xl mb-3 block text-gray-300"></i><p class="font-bold text-gray-500">Configura los períodos y presiona "Analizar Caídas"</p>`;
+        document.getElementById('caidasEmpty').classList.remove('hidden-section');
+        return;
+    }
+
     document.getElementById('caidasEmpty').classList.add('hidden-section');
     
     fl.forEach(d=>{
@@ -1195,21 +1325,57 @@ function renderCaidasTable(){
             <td class="p-3 text-right"><div class="font-bold text-blue-700">${d.baseAvg.toFixed(1)}</div><div class="text-[10px] text-gray-400">${d.baseUnits} total</div></td>
             <td class="p-3 text-right"><div class="font-bold text-red-600">${d.compAvg.toFixed(1)}</div><div class="text-[10px] text-gray-400">${d.compUnits} total</div></td>
             <td class="p-3 text-right font-black text-red-600">${d.deltaUnits.toFixed(1)}</td>
-            <td class="p-3 text-right"><div class="font-black text-lg ${sc[d.severity]||''}">${d.deltaPct.toFixed(1)}%</div></td>
+            <td class="p-3 text-right"><div class="font-black text-lg ${sc[d.severity]||''}">${Math.abs(d.deltaPct).toFixed(1)}%</div></td>
             <td class="p-3 text-right text-xs font-bold text-red-700">${mf.format(d.deltaNet)}</td>
             <td class="p-3 text-center">${sevBadge(d.severity)}</td>`;
         tbody.appendChild(tr);
     });
 }
+
 function updateKpis(){
+    const cat = document.getElementById('catFilterCaidas').value;
+    const st = (document.getElementById('caidasSearch').value||'').toLowerCase();
+    const stockFilter = document.getElementById('stockFilter') ? document.getElementById('stockFilter').value : 'all';
+    
+    const minPct = parseFloat(document.getElementById('sliderPct').value) || 0;
+    const minU = parseFloat(document.getElementById('sliderUnits').value) || 0;
+    const minB = parseFloat(document.getElementById('sliderMinBase').value) || 0;
+    const minNetLoss = parseFloat(document.getElementById('minNetLoss').value) || 0;
+
+    let minStockVal = parseFloat(document.getElementById('minStockVal')?.value);
+    let maxStockVal = parseFloat(document.getElementById('maxStockVal')?.value);
+    if(isNaN(minStockVal)) minStockVal = -Infinity;
+    if(isNaN(maxStockVal)) maxStockVal = Infinity;
+
     const c={critica:0,alta:0,media:0,leve:0};
-    caidasData.forEach(d=>c[d.severity]++);
-    ['critica','alta','media','leve'].forEach(s=>{document.getElementById('kpi'+s.charAt(0).toUpperCase()+s.slice(1)).innerText=c[s];document.getElementById('rptKpi'+s.charAt(0).toUpperCase()+s.slice(1)).innerText=c[s];});
+    
+    // Contamos ignorando los botones de severidad para saber cuántos hay disponibles en total
+    caidasData.forEach(d => {
+        if(cat && d.categoria !== cat) return;
+        if(st && !d.name.toLowerCase().includes(st) && !d.sku.toLowerCase().includes(st)) return;
+        if (stockFilter === 'instock' && (d.stock === null || d.stock <= 0)) return;
+        if (stockFilter === 'outstock' && (d.stock === null || d.stock > 0)) return;
+        if (stockFilter === 'stock_range' && d.stock !== null) {
+            if(d.stock < minStockVal || d.stock > maxStockVal) return;
+        }
+        if(d.baseAvg < minB) return;
+        if(Math.abs(d.deltaPct) < minPct) return;
+        if(Math.abs(d.deltaUnits) < minU) return;
+        if (minNetLoss > 0 && d.deltaNet > -minNetLoss) return;
+
+        c[d.severity]++;
+    });
+
+    ['critica','alta','media','leve'].forEach(s=>{
+        document.getElementById('kpi'+s.charAt(0).toUpperCase()+s.slice(1)).innerText=c[s];
+        document.getElementById('rptKpi'+s.charAt(0).toUpperCase()+s.slice(1)).innerText=c[s];
+    });
 }
+
 function toggleChip(n){
     const c=document.getElementById('chip-'+n);
     if(activeChips.has(n)){activeChips.delete(n);c.classList.remove('on');}else{activeChips.add(n);c.classList.add('on');}
-    renderCaidasTable();
+    updateCaidasView();
 }
 
 function exportCaidasReport(){
@@ -1225,20 +1391,8 @@ function exportCaidasReport(){
         leve:   {bg:'#f0fdf4',border:'#86efac',txt:'#166534',bar:'#16a34a',label:'Leve'}
     };
 
-    const st=(document.getElementById('caidasSearch').value||'').toLowerCase();
-    const cat=document.getElementById('catFilterCaidas').value;
-    const stockFilter = document.getElementById('stockFilter') ? document.getElementById('stockFilter').value : 'all';
-
-    const fl=caidasData.filter(d=>{
-        if(cat && d.categoria !== cat) return false;
-        if(!activeChips.has(d.severity)) return false;
-        if(st&&!d.name.toLowerCase().includes(st)&&!d.sku.toLowerCase().includes(st)) return false;
-        
-        if (stockFilter === 'instock' && (d.stock === null || d.stock <= 0)) return false;
-        if (stockFilter === 'outstock' && (d.stock === null || d.stock > 0)) return false;
-        
-        return true;
-    });
+    // Obtenemos los datos IDÉNTICOS a la vista
+    const fl = getFilteredCaidasData();
     if(fl.length===0) return;
 
     const sortedBase=[...fl].map(d=>d.baseAvg).sort((a,b)=>a-b);
@@ -1289,7 +1443,7 @@ function exportCaidasReport(){
               <div style="font-size:5.8pt;color:#64748b;font-family:monospace;letter-spacing:-.2px;">${d.sku} ${stockInfoHtml}</div>
             </div>
             <div style="text-align:right;flex-shrink:0;line-height:1;">
-              <div style="font-size:12pt;font-weight:900;color:${c.txt};">${d.deltaPct.toFixed(0)}%</div>
+              <div style="font-size:12pt;font-weight:900;color:${c.txt};">${Math.abs(d.deltaPct).toFixed(0)}%</div>
               <div style="font-size:5.5pt;color:#94a3b8;text-transform:uppercase;">${c.label}</div>
             </div>
           </div>
@@ -1364,24 +1518,18 @@ function closeCaidasReport(){
     document.getElementById('panelCaidas').classList.remove('hidden-section');
 }
 
-// NUEVA FUNCIÓN: Genera Reporte A4 específico para Compras
 function exportQuiebresReport() {
     document.getElementById('quiebresReportDate').innerText = new Date().toLocaleDateString('es-CL');
     
-    // Obtener filtros actuales de pantalla (Categoría y Buscador)
-    const st = (document.getElementById('caidasSearch').value || '').toLowerCase();
-    const cat = document.getElementById('catFilterCaidas').value;
+    // 1. Obtenemos datos filtrados idénticos a los que el usuario ve en la tabla
+    let fl = getFilteredCaidasData();
     
-    // Filtramos ESTRICTAMENTE los que tienen stock <= 0 (Quiebres)
-    const fl = caidasData.filter(d => {
-        if(d.stock === null || d.stock > 0) return false; // Solo quiebres
-        if(cat && d.categoria !== cat) return false;
-        if(st && !d.name.toLowerCase().includes(st) && !d.sku.toLowerCase().includes(st)) return false;
-        return true;
-    });
+    // 2. APLICACIÓN ESTRICTA: El reporte de quiebres SOLO DEBE SER de elementos con Stock = 0
+    // Esto es por si el usuario en la vista tenía puesto el filtro de stock en "Ver Todos" o "Rango"
+    fl = fl.filter(d => d.stock !== null && d.stock <= 0);
 
     if(fl.length === 0) {
-        alert("No hay productos sin stock (0) dentro de la categoría/búsqueda actual para generar el reporte.");
+        alert("Con los filtros visuales que tienes aplicados (categorías, etc.), no hay ningún producto que tenga stock en 0.");
         return;
     }
 
@@ -1432,7 +1580,7 @@ function exportQuiebresReport() {
                         <td style="padding:4px 8px; font-family:monospace; color:#64748b;">${d.sku}</td>
                         <td style="padding:4px 8px; font-weight:700; color:#0f172a;">${d.name}</td>
                         <td style="padding:4px 8px; text-align:center; color:#3b82f6; font-weight:600;">${d.baseAvg.toFixed(1)} und/m</td>
-                        <td style="padding:4px 8px; text-align:center; color:#b91c1c; font-weight:700;">${d.deltaPct.toFixed(0)}% (🔻 ${Math.abs(d.deltaUnits).toFixed(1)})</td>
+                        <td style="padding:4px 8px; text-align:center; color:#b91c1c; font-weight:700;">${Math.abs(d.deltaPct).toFixed(0)}% (🔻 ${Math.abs(d.deltaUnits).toFixed(1)})</td>
                         <td style="padding:4px 8px; text-align:center;">
                             <span style="background:#fef2f2; color:#b91c1c; padding:2px 6px; border-radius:12px; font-weight:900; font-size:7pt; border:1px solid #fca5a5;">0</span>
                         </td>
