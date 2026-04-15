@@ -89,10 +89,13 @@
             #reportView:not(.hidden-section),
             #caidasReportView:not(.hidden-section),
             #masterReportView:not(.hidden-section),
-            #quiebresReportView:not(.hidden-section) { display:block !important; }
+            #quiebresReportView:not(.hidden-section),
+            #stockPrintView:not(.hidden-section) { display:block !important; }
             table { width:100%;border-collapse:collapse; }
             th { background:#eee !important;border-bottom:1px solid #000;padding:3px; }
             td { border-bottom:1px solid #ddd;padding:2px; }
+            /* Asegurar que las imágenes del gráfico se impriman */
+            img { max-width:100% !important; page-break-inside:avoid; }
         }
     </style>
 </head>
@@ -117,9 +120,9 @@
         </div>
         <div class="bg-white p-3 rounded-xl shadow border border-purple-100 flex-1">
             <label class="block text-[10px] font-black text-purple-800 uppercase mb-1"><i class="fas fa-boxes-stacking"></i> 3. Tarjeta Existencias (XLS Bsale)</label>
-            <input type="file" id="uploadTarjeta" accept=".xls,.xlsx,.csv"
+            <input type="file" id="uploadTarjeta" accept=".xls,.xlsx,.csv" multiple
                 class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 cursor-pointer"/>
-            <p class="text-[9px] text-purple-500 mt-1 font-mono">Exportar desde Bsale: Inventario → Tarjeta de Existencias → XLS</p>
+            <p class="text-[9px] text-purple-500 mt-1 font-mono">Puedes seleccionar varios XLS a la vez · Se acumulan</p>
         </div>
     </div>
 </div>
@@ -442,6 +445,7 @@
                         <option value="entradas_salidas">🔄 Entradas vs Salidas</option>
                         <option value="rotacion">📈 Stock Inicial vs Stock Cierre</option>
                     </select>
+                    <button onclick="clearStockProducts()" class="bg-red-50 border border-red-200 text-red-600 font-bold py-2 px-3 rounded text-sm" title="Limpiar todos los productos cargados"><i class="fas fa-trash-alt"></i></button>
                     <button onclick="exportStockReport()" class="bg-slate-700 text-white font-bold py-2 px-4 rounded text-sm shadow"><i class="fas fa-print"></i> Imprimir</button>
                 </div>
             </div>
@@ -562,7 +566,14 @@
     </div>
 </div>
 
-<div id="masterReportView" class="hidden-section bg-white mx-auto p-6">
+<!-- STOCK PRINT VIEW -->
+<div id="stockPrintView" class="hidden-section bg-white mx-auto" style="max-width:21cm;padding:1cm;">
+    <!-- contenido generado dinámicamente por exportStockReport() -->
+</div>
+<div id="stockPrintButtons" class="hidden-section no-print" style="max-width:21cm;margin:12px auto;display:flex;gap:8px;justify-content:flex-end;">
+    <button onclick="closeStockReport()" style="background:#e5e7eb;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;">← Volver</button>
+    <button onclick="window.print()" style="background:#7c3aed;color:white;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;"><i class="fas fa-print"></i> Imprimir</button>
+</div>
     <div class="border-b-2 border-blue-700 pb-3 mb-4"><h1 class="text-xl font-bold uppercase text-blue-800">Vista Maestra de Ventas</h1><p class="text-xs mt-1">Emisión: <span id="masterReportDate"></span> | Por: <strong>LEONARDO CASTRO</strong></p></div>
     <div id="masterReportContent"></div>
     <div class="no-print mt-4 flex gap-2 justify-end"><button onclick="closeMasterReport()" class="bg-gray-200 px-3 py-1 rounded text-xs">Volver</button><button onclick="window.print()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs">Imprimir</button></div>
@@ -685,41 +696,61 @@ function getAllMonthsInRange(product) {
 function handleStockDrop(event) {
     event.preventDefault();
     document.getElementById('stockUploadZone').classList.remove('drag-over');
-    const file = event.dataTransfer.files[0];
-    if (file) processTarjetaFile(file);
+    const files = Array.from(event.dataTransfer.files).filter(f => f.name.match(/\.(xls|xlsx|csv)$/i));
+    if (files.length > 0) processMultipleTarjetaFiles(files);
 }
 
 document.getElementById('uploadTarjeta').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) processTarjetaFile(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) processMultipleTarjetaFiles(files);
+    // Reset input so same file can be re-added
+    e.target.value = '';
 });
 
-function processTarjetaFile(file) {
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-        let content = evt.target.result;
-        let products = parseTarjetaExistencias(content);
+function processMultipleTarjetaFiles(files) {
+    let pending = files.length;
+    let newProducts = [];
 
-        if (!products || products.length === 0) {
-            alert('No se pudo leer el archivo. Asegúrate de exportar desde Bsale → Inventario → Tarjeta de Existencias en formato XLS.');
-            return;
-        }
-
-        // Rellenar gaps de stock
-        products.forEach(p => fillStockGaps(p));
-
-        stockProductsData = products;
-        setupStockUI();
-        renderStockCharts();
-
-        // Mostrar tab
-        document.getElementById('tab-stock').style.display = '';
-        switchTab('stock');
-    };
-    reader.readAsText(file, 'UTF-8');
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const products = parseTarjetaExistencias(evt.target.result);
+            products.forEach(p => fillStockGaps(p));
+            newProducts = newProducts.concat(products);
+            pending--;
+            if (pending === 0) {
+                // Deduplicar por SKU: si ya existe, reemplazar
+                newProducts.forEach(np => {
+                    const existingIdx = stockProductsData.findIndex(ep => ep.sku === np.sku);
+                    if (existingIdx >= 0) stockProductsData[existingIdx] = np;
+                    else stockProductsData.push(np);
+                });
+                if (stockProductsData.length === 0) {
+                    alert('No se pudo leer ningún archivo. Verifica el formato.');
+                    return;
+                }
+                setupStockUI();
+                renderStockCharts();
+                document.getElementById('tab-stock').style.display = '';
+                switchTab('stock');
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    });
 }
 
-function setupStockUI() {
+// processTarjetaFile replaced by processMultipleTarjetaFiles above
+
+function clearStockProducts() {
+    if (!confirm(`¿Limpiar los ${stockProductsData.length} producto(s) cargado(s)?`)) return;
+    stockProductsData = [];
+    stockChartInstances.forEach(c => { try { c.destroy(); } catch(e){} });
+    stockChartInstances = [];
+    document.getElementById('stockCardsGrid').innerHTML = '';
+    document.getElementById('stockControls').classList.add('hidden-section');
+    document.getElementById('stockUploadZone').classList.remove('hidden-section');
+    document.getElementById('tab-stock').style.display = 'none';
+}
     document.getElementById('stockUploadZone').classList.add('hidden-section');
     document.getElementById('stockControls').classList.remove('hidden-section');
 
@@ -841,7 +872,7 @@ function buildStockCard(p, mode, idx) {
             ${mesesSinVenta.some((mk,i) => { const idx2 = allMonths.indexOf(mk); return idx2 > 0 && stockData[idx2] <= 0; }) ? 
               '<span class="ml-2 bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-black">Posible quiebre de stock</span>' : ''}
         </div>` : ''}
-        <div style="position:relative; height:260px;">
+        <div style="position:relative; height:380px;">
             <canvas id="stockCanvas_${idx}"></canvas>
         </div>
         <div class="mt-3 overflow-x-auto">
@@ -927,7 +958,7 @@ function buildStockCard(p, mode, idx) {
                     borderColor: '#dc2626',
                     backgroundColor: 'rgba(220,38,38,0.08)',
                     borderWidth: 2.5,
-                    pointRadius: stockData.map((s, i) => s <= 0 ? 7 : 4),
+                    pointRadius: stockData.map((s, i) => s <= 0 ? 5 : 4),
                     pointBackgroundColor: stockData.map(s => s <= 0 ? '#dc2626' : s <= 10 ? '#f59e0b' : '#dc2626'),
                     pointStyle: stockData.map(s => s <= 0 ? 'crossRot' : 'circle'),
                     fill: true,
@@ -1044,9 +1075,147 @@ function buildStockCard(p, mode, idx) {
     return card;
 }
 
-// Exportar reporte stock
+// Exportar reporte stock — convierte canvas a imágenes para que se impriman
 function exportStockReport() {
-    window.print();
+    // Tomar snapshot de todos los canvas activos
+    const printDiv = document.getElementById('stockPrintView');
+    printDiv.innerHTML = '';
+
+    const filterVal = document.getElementById('stockProductFilter').value;
+    const mode = document.getElementById('stockModeChart').value;
+    const modeLabel = {ventas_stock:'Ventas + Stock por Mes', entradas_salidas:'Entradas vs Salidas', rotacion:'Stock Inicial vs Stock Cierre'}[mode] || mode;
+
+    let toRender = filterVal === 'all' 
+        ? stockProductsData 
+        : [stockProductsData[parseInt(filterVal)]];
+
+    // Cabecera del reporte
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'border-bottom:3px solid #7c3aed;padding-bottom:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;';
+    hdr.innerHTML = `<div><h1 style="font-size:16pt;font-weight:900;color:#4c1d95;margin:0;text-transform:uppercase;">Stock vs Ventas — Tarjeta de Existencias</h1>
+        <p style="font-size:8pt;color:#666;margin:3px 0 0;">Modo: ${modeLabel} · ${toRender.length} producto(s)</p></div>
+        <p style="font-size:8pt;color:#666;margin:0;">Emisión: ${new Date().toLocaleDateString('es-CL')} · <strong>AROMAKER</strong></p>`;
+    printDiv.appendChild(hdr);
+
+    toRender.forEach((p, idx) => {
+        const allMonths = getAllMonthsInRange(p);
+        const ventasData   = allMonths.map(mk => p.byMonth[mk] ? p.byMonth[mk].ventas    : 0);
+        const entradasData = allMonths.map(mk => p.byMonth[mk] ? p.byMonth[mk].entradas  : 0);
+        const stockData    = allMonths.map(mk => p.byMonth[mk] ? p.byMonth[mk].stockCierre : 0);
+        const totalVentas   = ventasData.reduce((a,b)=>a+b,0);
+        const totalEntradas = entradasData.reduce((a,b)=>a+b,0);
+        const stockActual   = stockData[stockData.length-1] || 0;
+        const maxVentas     = Math.max(...ventasData);
+        const mesMaxVentas  = ventasData.indexOf(maxVentas);
+        const labels        = allMonths.map(formatMk);
+        const mesesSinVenta = allMonths.filter((_,i)=>ventasData[i]===0);
+
+        // Wrapper página — page break entre productos
+        const pageWrap = document.createElement('div');
+        if (idx > 0) pageWrap.style.pageBreakBefore = 'always';
+        pageWrap.style.cssText = 'margin-bottom:20px;';
+
+        // Cabecera de producto
+        const ph = document.createElement('div');
+        ph.style.cssText = 'background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;padding:10px 14px;border-radius:8px 8px 0 0;';
+        const stockBadge = stockActual<=0?'background:#fee2e2;color:#991b1b;':stockActual<=10?'background:#fef9c3;color:#854d0e;':'background:#dcfce7;color:#166534;';
+        ph.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <div style="font-size:12pt;font-weight:900;">${p.nombre}</div>
+                <div style="font-size:8pt;color:#a5b4fc;font-family:monospace;">SKU: ${p.sku} · ${p.categoria||'Sin categoría'}</div>
+            </div>
+            <span style="${stockBadge}padding:3px 10px;border-radius:20px;font-size:9pt;font-weight:900;">${stockActual<=0?'⚠️ Sin Stock (0)':stockActual<=10?'⚠️ Stock Bajo: '+stockActual:'Stock: '+stockActual}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px;">
+            <div style="background:rgba(255,255,255,.1);border-radius:6px;padding:6px;text-align:center;"><div style="font-size:14pt;font-weight:900;">${totalVentas}</div><div style="font-size:7pt;opacity:.7;">Total vendido</div></div>
+            <div style="background:rgba(255,255,255,.1);border-radius:6px;padding:6px;text-align:center;"><div style="font-size:14pt;font-weight:900;">${totalEntradas}</div><div style="font-size:7pt;opacity:.7;">Total ingresado</div></div>
+            <div style="background:rgba(255,255,255,.1);border-radius:6px;padding:6px;text-align:center;"><div style="font-size:14pt;font-weight:900;">${maxVentas>0?labels[mesMaxVentas]:'—'}</div><div style="font-size:7pt;opacity:.7;">Mes pico ventas</div></div>
+            <div style="background:rgba(255,255,255,.1);border-radius:6px;padding:6px;text-align:center;"><div style="font-size:14pt;font-weight:900;">${allMonths.length}</div><div style="font-size:7pt;opacity:.7;">Meses</div></div>
+        </div>`;
+        pageWrap.appendChild(ph);
+
+        // Alerta meses sin ventas
+        if (mesesSinVenta.length > 0) {
+            const al = document.createElement('div');
+            al.style.cssText = 'background:#fef9c3;border:1px solid #fde047;padding:6px 10px;font-size:8pt;color:#854d0e;';
+            const hayQuiebre = mesesSinVenta.some((_,i2)=>{ const i3=allMonths.indexOf(mesesSinVenta[i2]); return i3>0&&stockData[i3]<=0; });
+            al.innerHTML = `⚠️ <strong>Meses sin ventas:</strong> ${mesesSinVenta.map(formatMk).join(', ')}${hayQuiebre?' · <strong style="color:#b91c1c;">Posible quiebre de stock</strong>':''}`;
+            pageWrap.appendChild(al);
+        }
+
+        // Imagen del gráfico (tomar desde el canvas activo)
+        const liveCanvas = document.getElementById(`stockCanvas_${idx}`);
+        if (liveCanvas) {
+            const imgWrap = document.createElement('div');
+            imgWrap.style.cssText = 'border:1px solid #e2e8f0;border-top:none;padding:8px;background:white;';
+            const img = document.createElement('img');
+            img.id = `stockPrintImg_${idx}`;
+            img.src = liveCanvas.toDataURL('image/png', 1.0);
+            img.style.cssText = 'width:100%;height:auto;display:block;';
+            imgWrap.appendChild(img);
+            pageWrap.appendChild(imgWrap);
+        }
+
+        // Tabla de datos
+        const tWrap = document.createElement('div');
+        tWrap.style.cssText = 'border:1px solid #e2e8f0;border-top:none;';
+        const tbl = document.createElement('table');
+        tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:8pt;';
+        tbl.innerHTML = `<thead>
+            <tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1;">
+                <th style="padding:4px 8px;text-align:left;font-weight:700;color:#475569;">Mes</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:700;color:#1d4ed8;">Ventas</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:700;color:#166534;">Entradas</th>
+                <th style="padding:4px 8px;text-align:right;font-weight:700;color:#b91c1c;">Stock Cierre</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${allMonths.map((mk,i)=>{
+                const v=ventasData[i],e=entradasData[i],s=stockData[i];
+                const bg=v===0?'background:#fef9c3;':i%2===0?'background:#f8fafc;':'';
+                const sc=s<=0?'color:#b91c1c;font-weight:900;':s<=10?'color:#92400e;font-weight:700;':'color:#1e293b;';
+                return `<tr style="${bg}border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:3px 8px;font-family:monospace;font-weight:700;color:#475569;">${formatMk(mk)}</td>
+                    <td style="padding:3px 8px;text-align:right;font-weight:700;${v===0?'color:#d1d5db;':'color:#1d4ed8;'}">${v>0?v:'—'}</td>
+                    <td style="padding:3px 8px;text-align:right;font-weight:700;${e===0?'color:#d1d5db;':'color:#166534;'}">${e>0?e:'—'}</td>
+                    <td style="padding:3px 8px;text-align:right;${sc}">${s}</td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+        <tfoot>
+            <tr style="background:#e2e8f0;font-weight:900;border-top:2px solid #94a3b8;">
+                <td style="padding:4px 8px;">TOTAL</td>
+                <td style="padding:4px 8px;text-align:right;color:#1d4ed8;">${totalVentas}</td>
+                <td style="padding:4px 8px;text-align:right;color:#166534;">${totalEntradas}</td>
+                <td style="padding:4px 8px;text-align:right;">${stockActual} (cierre)</td>
+            </tr>
+        </tfoot>`;
+        tWrap.appendChild(tbl);
+        pageWrap.appendChild(tWrap);
+        printDiv.appendChild(pageWrap);
+    });
+
+    // Mostrar vista de impresión — esperar a que los canvas estén pintados
+    setTimeout(() => {
+        // Re-capturar imágenes (ya deben estar pintadas del render previo)
+        toRender.forEach((p, idx) => {
+            const liveCanvas = document.getElementById(`stockCanvas_${idx}`);
+            const imgEl = document.getElementById(`stockPrintImg_${idx}`);
+            if (liveCanvas && imgEl) {
+                imgEl.src = liveCanvas.toDataURL('image/png', 1.0);
+            }
+        });
+        ['tabsBar','panelStock'].forEach(id => document.getElementById(id).classList.add('hidden-section'));
+        document.getElementById('stockPrintView').classList.remove('hidden-section');
+        document.getElementById('stockPrintButtons').classList.remove('hidden-section');
+    }, 300);
+}
+
+function closeStockReport() {
+    document.getElementById('stockPrintView').classList.add('hidden-section');
+    document.getElementById('stockPrintButtons').classList.add('hidden-section');
+    document.getElementById('tabsBar').classList.remove('hidden-section');
+    document.getElementById('panelStock').classList.remove('hidden-section');
 }
 
 // ════════════════════════════════════════════════════════════════
